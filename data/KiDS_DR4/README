@@ -6,7 +6,5 @@ To get the data for all 1006 tiles, please run the following script in the termi
 cd /data1/jliu/SOM-with-kids-dwarf-galaxy/data/KiDS_DR4
 mkdir fitscats
 wget -P fitscats/ -i kids_dr4.0_download_list.txt
-wget -i kids_dr4.1_download_list.txt
-mv *.fits fitscats/ -f
 
 DR4.1 is a minor update to DR4.0, which fixes some issues with the photometric calibration and adds a few missing tiles.
