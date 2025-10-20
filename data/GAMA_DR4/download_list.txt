@@ -1,0 +1,4 @@
+https://gama-survey.org/dr4/data/cat/gkvInputCat/v02/gkvScienceCatv02.notes
+https://gama-survey.org/dr4/data/cat/gkvInputCat/v02/gkvScienceCatv02.fits
+https://gama-survey.org/dr4/data/cat/StellarMasses/v24/StellarMasses.notes
+https://gama-survey.org/dr4/data/cat/StellarMasses/v24/StellarMassesGKVv24.fits
