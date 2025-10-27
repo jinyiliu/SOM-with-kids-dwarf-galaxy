@@ -1,5 +1,6 @@
 import os
 import itertools
+import pandas as pd
 
 from astropy.io import fits
 from astropy import table
@@ -17,6 +18,10 @@ _KiDS_RAW_DATA_DIR = os.path.join(
     _KiDS_DIR,
     "ugriZYJHKs_tile_cats",
 )
+_KiDS_DMAG_path = os.path.join(
+    _KiDS_DIR,
+    "KiDS_DMAG_R_zeropoint_corrections.csv",
+)
 
 _KiDS_OmegaCAM_pixel_length = 0.213 # arcsec
 _KiDS_photometric_bands = ["u", "g", "r", "i", "Z", "Y", "J", "H", "Ks"]
@@ -27,14 +32,36 @@ _KiDS_selected_columns = [
     "THELI_NAME",
     "RAJ2000",
     "DECJ2000",
-    "MAG_AUTO", # TODO: check if this is with extinction correction
+    "MAG_AUTO",
     "MAGERR_AUTO",
+    "EXTINCION_R",
     "FLUX_RADIUS", # TODO: convert unit from pixel to arcsec
     "Z_B",
 ]
 
 
-def get_KiDS_photometric_catalogue(
+def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
+    if not os.path.exists(_KiDS_DMAG_path):
+        t = {
+            "KIDS_TILE": [],
+            "DMAG_R": [],
+        }
+        for tile_catalogue in os.listdir(_KiDS_RAW_DATA_DIR):
+            t["KIDS_TILE"].append(
+                "KIDS_" + "_".join(tile_catalogue.split("_")[2:4])
+            )
+            with fits.open(os.path.join(_KiDS_RAW_DATA_DIR, tile_catalogue)) as hdul:
+                t["DMAG_R"].append(
+                    hdul[0].header["DMAG_R"]
+                )
+        df = pd.DataFrame(t)
+        df.to_csv(_KiDS_DMAG_path, index=False)
+
+    df = pd.read_csv(_KiDS_DMAG_path, index_col="KIDS_TILE")
+    return df["DMAG_R"].to_dict()
+
+
+def create_KiDS_photometric_catalogue(
         save_dir: str=_KiDS_DIR,
         fname: str="KiDS_panchromatic_catalogue.fits",
 ):
@@ -52,6 +79,11 @@ def get_KiDS_photometric_catalogue(
 
     cat_processed = cat[_KiDS_selected_columns]
     cat_processed["Z_B_ERR"] = (cat["Z_B_MAX"] - cat["Z_B_MIN"]) / 2
+
+    DMAG_R_map = get_DMAG_R_zeropoint_correction()
+    cat_processed["DMAG_R"] = [
+        DMAG_R_map[tile] for tile in cat_processed["KIDS_TILE"]
+    ]
 
     # Define the mask
     mask = cat["MASK"] & 28668 == 0
