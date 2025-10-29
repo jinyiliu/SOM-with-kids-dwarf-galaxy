@@ -34,7 +34,8 @@ _KiDS_selected_columns = [
     "DECJ2000",
     "MAG_AUTO",
     "MAGERR_AUTO",
-    "EXTINCION_R",
+    "DMAG_R",
+    "EXTINCTION_r",
     "FLUX_RADIUS", # TODO: convert unit from pixel to arcsec
     "Z_B",
 ]
@@ -77,13 +78,13 @@ def create_KiDS_photometric_catalogue(
     with fits.open(merged_photometry_cat_path) as hdul:
         cat = table.Table(hdul[1].data)
 
+    DMAG_R_map = get_DMAG_R_zeropoint_correction()
+    cat["DMAG_R"] = [
+        DMAG_R_map[tile.strip()] for tile in cat["KIDS_TILE"]
+    ]
+
     cat_processed = cat[_KiDS_selected_columns]
     cat_processed["Z_B_ERR"] = (cat["Z_B_MAX"] - cat["Z_B_MIN"]) / 2
-
-    DMAG_R_map = get_DMAG_R_zeropoint_correction()
-    cat_processed["DMAG_R"] = [
-        DMAG_R_map[tile] for tile in cat_processed["KIDS_TILE"]
-    ]
 
     # Define the mask
     mask = cat["MASK"] & 28668 == 0
@@ -92,7 +93,8 @@ def create_KiDS_photometric_catalogue(
     mask *= cat["SG2DPHOT"] == 0
     mask *= cat["SG_FLAG"] == 1
     mask *= cat["FLUX_GAAP_r"] / cat["FLUXERR_GAAP_r"] > 5.
-    mask *= cat["MAG_AUTO"] < 18.
+    mask *= cat["MAG_AUTO"] + cat["DMAG_R"] < 19.65
+    mask *= cat["MAG_AUTO"] + cat["DMAG_R"] > 18.00
     mask *= cat["Z_B"] < 1
     for band in _KiDS_photometric_bands:
         mask *= cat[f"FLAG_GAAP_{band}"] == 0
