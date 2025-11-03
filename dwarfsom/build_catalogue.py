@@ -86,6 +86,9 @@ def create_KiDS_photometric_catalogue(
     cat_processed = cat[_KiDS_selected_columns]
     cat_processed["FLUX_RADIUS"] = cat_processed["FLUX_RADIUS"] * _KiDS_OmegaCAM_pixel_length
     cat_processed["Z_B_ERR"] = (cat["Z_B_MAX"] - cat["Z_B_MIN"]) / 2
+    cat_processed["MAG_CORR"] = (
+        cat_processed["MAGERR_AUTO"] + cat_processed["DMAG_R"] - cat_processed["EXTINCTION_r"]
+    )
 
     # Define the mask
     mask = cat["MASK"] & 28668 == 0
