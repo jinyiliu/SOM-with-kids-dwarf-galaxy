@@ -36,7 +36,7 @@ _KiDS_selected_columns = [
     "MAGERR_AUTO",
     "DMAG_R",
     "EXTINCTION_r",
-    "FLUX_RADIUS", # TODO: convert unit from pixel to arcsec
+    "FLUX_RADIUS",
     "Z_B",
 ]
 
@@ -84,6 +84,7 @@ def create_KiDS_photometric_catalogue(
     ]
 
     cat_processed = cat[_KiDS_selected_columns]
+    cat_processed["FLUX_RADIUS"] = cat_processed["FLUX_RADIUS"] * _KiDS_OmegaCAM_pixel_length
     cat_processed["Z_B_ERR"] = (cat["Z_B_MAX"] - cat["Z_B_MIN"]) / 2
 
     # Define the mask
