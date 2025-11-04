@@ -1,9 +1,12 @@
 import os
 import itertools
 import pandas as pd
+import numpy as np
 
 from astropy.io import fits
 from astropy import table
+
+from dwarfsom.utils import fwhm2r50
 
 _NODE_DIR = "/net/alblas"
 _DATA_DIR = os.path.join(
@@ -37,7 +40,10 @@ _KiDS_selected_columns = [
     "DMAG_R",
     "EXTINCTION_r",
     "FLUX_RADIUS",
+    "FWHM_IMAGE",
     "Z_B",
+    "MU_MAX", # Peak surface brightness above background
+]
 ]
 
 
@@ -85,9 +91,20 @@ def create_KiDS_photometric_catalogue(
 
     cat_processed = cat[_KiDS_selected_columns]
     cat_processed["FLUX_RADIUS"] = cat_processed["FLUX_RADIUS"] * _KiDS_OmegaCAM_pixel_length
+    cat_processed["FWHM_IMAGE"] = cat_processed["FWHM_IMAGE"] * _KiDS_OmegaCAM_pixel_length
     cat_processed["Z_B_ERR"] = (cat["Z_B_MAX"] - cat["Z_B_MIN"]) / 2
     cat_processed["MAG_CORR"] = (
         cat_processed["MAGERR_AUTO"] + cat_processed["DMAG_R"] - cat_processed["EXTINCTION_r"]
+    )
+    cat_processed["MU_EFF_FLUX_RADIUS"] = (
+        cat_processed["MAG_AUTO"] + 2.5 * np.log10(
+            2 * np.pi * (cat_processed["FLUX_RADIUS"])**2
+        )
+    )
+    cat_processed["MU_EFF_FWHM_IMAGE"] = (
+        cat_processed["MAG_AUTO"] + 2.5 * np.log10(
+            2 * np.pi * fwhm2r50(cat_processed["FWHM_IMAGE"]) ** 2
+        )
     )
 
     # Define the mask
