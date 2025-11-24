@@ -6,7 +6,9 @@ import numpy as np
 from astropy.io import fits
 from astropy import table
 
-from dwarfsom.utils import fwhm2r50
+def Rhf2FWHM(Rhf):
+    """Convert half-light radius to FWHM for a Gaussian profile."""
+    return Rhf * 1.75
 
 _NODE_DIR = "/net/alblas"
 _DATA_DIR = os.path.join(
@@ -111,7 +113,7 @@ def create_KiDS_photometric_catalogue(
         cat_processed[f"COLOURERR_GAAP_{band1}_{band2}"] = (
             cat[f"MAGERR_GAAP_{band1}"]**2 + cat[f"MAGERR_GAAP_{band2}"]**2
         ) ** 0.5
-        mask *= (colour < 4) & (colour > -2)
+        mask *= cat_processed[f"COLOURERR_GAAP_{band1}_{band2}"] < 0.2
 
     cat_processed = cat_processed[mask]
 
@@ -123,12 +125,12 @@ def create_KiDS_photometric_catalogue(
     )
     cat_processed["MU_EFF_FLUX_RADIUS"] = (
         cat_processed["MAG_AUTO"] + 2.5 * np.log10(
-            2 * np.pi * (cat_processed["FLUX_RADIUS"]) ** 2
+            2 * np.pi * (Rhf2FWHM(cat_processed["FLUX_RADIUS"]) / 2) ** 2
         )
     )
     cat_processed["MU_EFF_FWHM_IMAGE"] = (
         cat_processed["MAG_AUTO"] + 2.5 * np.log10(
-            2 * np.pi * fwhm2r50(cat_processed["FWHM_IMAGE"]) ** 2
+            2 * np.pi * (cat_processed["FWHM_IMAGE"] / 2) ** 2
         )
     )
 
