@@ -46,6 +46,39 @@ _KiDS_selected_columns = [
     "Z_B",
     "MU_MAX", # Peak surface brightness above background
 ]
+
+_GAMA_DIR = os.path.join(
+    _DATA_DIR,
+    "GAMA_DR4",
+)
+_GAMA_gkvScienceCat_path = os.path.join(
+    _GAMA_DIR,
+    "gkvScienceCatv02.fits",
+)
+_GAMA_StellarMasses_path = os.path.join(
+    _GAMA_DIR,
+    "StellarMassesGKVv24.fits",
+)
+_GAMA_selected_columns_gkvScienceCat = [
+    "uberID",
+    "RAcen", # RA of flux-weighted centre (ICRS)
+    "Deccen", # Dec of flux-weighted centre (ICRS)
+    "uberclass",
+    "mag",
+    "Z",
+    "NQ",
+    "SC",
+    "R50", # Approximate elliptical semi-major axis containing 50% of the flux
+]
+_GAMA_selected_columns_StellarMasses = [
+    "uberID",
+    "nefffilt",
+    "nefftemp",
+    "mstar",
+    "delmstar",
+    "logmstar",
+    "dellogmstar",
+    "ppp",
 ]
 
 
@@ -142,8 +175,38 @@ def create_KiDS_photometric_catalogue(
 
 
 
-def create_GAMA_spectropic_catalogue():
-    pass
+def create_GAMA_spectroscopic_catalogue(
+        save_dir: str=_GAMA_DIR,
+        fname: str="GAMA_processed_catalogue.fits",
+):
+    with fits.open(_GAMA_gkvScienceCat_path) as hdul:
+         dmu_gkvScienceCat = table.Table(hdul[1].data)
+
+    with fits.open(_GAMA_StellarMasses_path) as hdul:
+         dmu_StellarMassesGKV = table.Table(hdul[1].data)
+
+    cat = table.join(
+        dmu_gkvScienceCat[_GAMA_selected_columns_gkvScienceCat],
+        dmu_StellarMassesGKV[_GAMA_selected_columns_StellarMasses],
+        keys="uberID",
+    )
+
+    del dmu_gkvScienceCat, dmu_StellarMassesGKV
+
+    cat.write(
+        os.path.join(save_dir, "GAMA_joined_catalogue.fits"),
+        format="fits",
+        overwrite=True,
+    )
+
+    mask = cat["SC"] > 3
+
+    cat_processed = cat[mask]
+    cat_processed.write(
+        os.path.join(save_dir, fname),
+        format="fits",
+        overwrite=True,
+    )
 
 
 
