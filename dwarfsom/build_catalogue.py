@@ -121,7 +121,7 @@ def create_KiDS_photometric_catalogue(
     cat_processed["FLUX_RADIUS"] = cat_processed["FLUX_RADIUS"] * _KiDS_OmegaCAM_pixel_length
     cat_processed["FWHM_IMAGE"] = cat_processed["FWHM_IMAGE"] * _KiDS_OmegaCAM_pixel_length
     cat_processed["MAG_CORR"] = (
-        cat_processed["MAGERR_AUTO"] + cat_processed["DMAG_R"] - cat_processed["EXTINCTION_r"]
+        cat_processed["MAG_AUTO"] + cat_processed["DMAG_R"] - cat_processed["EXTINCTION_r"]
     )
     cat_processed["MU_EFF_FLUX_RADIUS"] = (
         cat_processed["MAG_AUTO"] + 2.5 * np.log10(
