@@ -29,7 +29,7 @@ _KiDS_DMAG_path = os.path.join(
 )
 
 _KiDS_OmegaCAM_pixel_length = 0.213 # arcsec
-_KiDS_photometric_bands = ["u", "g", "r", "i", "Z", "Y", "J", "H", "Ks"]
+KiDS_photometric_bands = ["u", "g", "r", "i", "Z", "Y", "J", "H", "Ks"]
 
 _KiDS_selected_columns = [
     "ID",
@@ -138,9 +138,10 @@ def create_KiDS_photometric_catalogue(
     mask *= cat["MAG_AUTO"] + cat["DMAG_R"] > 18.00
     mask *= cat["Z_B"] < 1
     for band in _KiDS_photometric_bands:
+    for band in KiDS_photometric_bands:
         mask *= cat[f"FLAG_GAAP_{band}"] == 0
 
-    for band1, band2 in itertools.combinations(_KiDS_photometric_bands, r=2):
+    for band1, band2 in itertools.combinations(KiDS_photometric_bands, r=2):
         colour = cat[f"MAG_GAAP_{band1}"] - cat[f"MAG_GAAP_{band2}"]
         cat_processed[f"COLOUR_GAAP_{band1}_{band2}"] = colour
         cat_processed[f"COLOURERR_GAAP_{band1}_{band2}"] = (
