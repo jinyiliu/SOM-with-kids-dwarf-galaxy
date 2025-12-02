@@ -10,6 +10,14 @@ def Rhf2FWHM(Rhf):
     """Convert half-light radius to FWHM for a Gaussian profile."""
     return Rhf * 1.75
 
+def create_mask_for_candidate_dwarfs(
+    magr, gminusr, gminusr_err, mueff, mueff_err,
+):
+    mask = gminusr - gminusr_err < 0.00085 * (magr - 13.) ** 3 + 0.83
+    mask *= mueff + mueff_err > 16.7 + 0.7 * (magr - 13.)
+    return mask
+
+
 _NODE_DIR = "/net/alblas"
 _DATA_DIR = os.path.join(
     _NODE_DIR,
@@ -133,11 +141,8 @@ def create_KiDS_photometric_catalogue(
     mask *= cat["CLASS_STAR"] < 0.5
     mask *= cat["SG2DPHOT"] == 0
     mask *= cat["SG_FLAG"] == 1
-    mask *= cat["FLUX_GAAP_r"] / cat["FLUXERR_GAAP_r"] > 5.
     mask *= cat["MAG_AUTO"] + cat["DMAG_R"] < 19.65
-    mask *= cat["MAG_AUTO"] + cat["DMAG_R"] > 18.00
-    mask *= cat["Z_B"] < 1
-    for band in _KiDS_photometric_bands:
+
     for band in KiDS_photometric_bands:
         mask *= cat[f"FLAG_GAAP_{band}"] == 0
 
