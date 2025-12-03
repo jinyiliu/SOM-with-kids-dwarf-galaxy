@@ -1,4 +1,5 @@
 from somoclu import Somoclu
+from tqdm import tqdm
 import pandas as pd
 import numpy as np
 
@@ -129,6 +130,30 @@ class DwarfSOM:
                     label_maps[:, row, col] = aggfunc(label_data, axis=1)
 
         return label_maps
+
+
+    def assign_label_values(self, bmus, label_maps) -> np.ndarray:
+        """Assign label values to samples based on their BMUs and label maps.
+
+        Args:
+            bmus: Array of shape (n_samples, 2) containing the BMU coordinates
+                for each sample.
+            label_maps: Array of shape (n_labels, n_rows, n_columns) containing
+                the label maps.
+
+        Returns:
+            assigned_labels: Array of shape (n_samples, n_labels) containing
+                the assigned label values for each sample.
+        """
+        assert self.is_labeled
+
+        n_samples = bmus.shape[0]
+        assigned_labels = np.empty(shape=(n_samples, self.n_labels))
+        for i in tqdm(range(n_samples), desc="Assigning labels"):
+            row, col = bmus[i]
+            assigned_labels[i] = label_maps[:, row, col]
+
+        return assigned_labels
 
 
     @property
