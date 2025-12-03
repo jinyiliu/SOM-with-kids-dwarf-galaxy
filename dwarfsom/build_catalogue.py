@@ -241,4 +241,5 @@ if __name__ == "__main__":
             "Do not run on the node alblas. This node has not enough memory."
         )
 
-    get_KiDS_photometric_catalogue()
+    create_KiDS_photometric_catalogue()
+    create_GAMA_spectroscopic_catalogue()
