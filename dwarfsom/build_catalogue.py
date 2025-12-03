@@ -134,6 +134,10 @@ def create_KiDS_photometric_catalogue(
 
     cat_processed = cat[_KiDS_selected_columns]
     cat_processed["Z_B_ERR"] = (cat["Z_B_MAX"] - cat["Z_B_MIN"]) / 2
+    cat_processed["FLUX_GAAP_SNR_r"] = cat["FLUX_GAAP_r"] / cat["FLUXERR_GAAP_r"]
+    cat_processed["MAG_CORR"] = (
+        cat_processed["MAG_AUTO"] + cat_processed["DMAG_R"] - cat_processed["EXTINCTION_r"]
+    )
 
     # Define the mask
     mask = cat["MASK"] & 28668 == 0
@@ -152,26 +156,30 @@ def create_KiDS_photometric_catalogue(
         cat_processed[f"COLOURERR_GAAP_{band1}_{band2}"] = (
             cat[f"MAGERR_GAAP_{band1}"]**2 + cat[f"MAGERR_GAAP_{band2}"]**2
         ) ** 0.5
-        mask *= cat_processed[f"COLOURERR_GAAP_{band1}_{band2}"] < 0.2
-
-    cat_processed = cat_processed[mask]
 
     # Additional derived columns
     cat_processed["FLUX_RADIUS"] = cat_processed["FLUX_RADIUS"] * _KiDS_OmegaCAM_pixel_length
     cat_processed["FWHM_IMAGE"] = cat_processed["FWHM_IMAGE"] * _KiDS_OmegaCAM_pixel_length
-    cat_processed["MAG_CORR"] = (
-        cat_processed["MAG_AUTO"] + cat_processed["DMAG_R"] - cat_processed["EXTINCTION_r"]
-    )
     cat_processed["MU_EFF_FLUX_RADIUS"] = (
-        cat_processed["MAG_AUTO"] + 2.5 * np.log10(
+        cat_processed["MAG_CORR"] + 2.5 * np.log10(
             2 * np.pi * (Rhf2FWHM(cat_processed["FLUX_RADIUS"]) / 2) ** 2
         )
     )
     cat_processed["MU_EFF_FWHM_IMAGE"] = (
-        cat_processed["MAG_AUTO"] + 2.5 * np.log10(
+        cat_processed["MAG_CORR"] + 2.5 * np.log10(
             2 * np.pi * (cat_processed["FWHM_IMAGE"] / 2) ** 2
         )
     )
+
+    mask *= create_mask_for_candidate_dwarfs(
+        cat_processed["MAG_CORR"],
+        cat_processed["COLOUR_GAAP_g_r"],
+        cat_processed["COLOURERR_GAAP_g_r"],
+        cat_processed["MU_EFF_FWHM_IMAGE"],
+        cat_processed["MAGERR_AUTO"],
+    )
+
+    cat_processed = cat_processed[mask]
 
     cat_processed.write(
         os.path.join(save_dir, fname),
