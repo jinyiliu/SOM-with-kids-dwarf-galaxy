@@ -215,6 +215,16 @@ def create_GAMA_spectroscopic_catalogue(
     )
 
 
+def fits2csv(
+        fits_savepath: str,
+        csv_savepath: str,
+        overwrite: bool=True,
+):
+    """Convert a FITS catalogue to a CSV catalogue."""
+    with fits.open(fits_savepath) as hdul:
+         cat = table.Table(hdul[1].data)
+
+    cat.write(csv_savepath, format="csv", overwrite=overwrite)
 
 
 if __name__ == "__main__":
