@@ -36,18 +36,18 @@ class DwarfSOM:
         self.n_labels = None
         self.bmus_label = None
         self.is_labeled = False
-        self.neuron_label_data = {}
+        self._neuron_label_data = {}
 
     def train(
             self,
-            data: pd.DataFrame,
+            X: pd.DataFrame,
             scaler: callable=None,
             epochs: int=100,
     ):
         self.scaler = scaler
-        data_scaled = self.scaler.fit_transform(data)
+        X_scaled = self.scaler.fit_transform(X)
         self.somoclu.train(
-            data=data_scaled,
+            data=X_scaled,
             epochs=epochs,
         )
         self.n_dim = self.somoclu.n_dim
@@ -55,18 +55,18 @@ class DwarfSOM:
         self.is_trained = True
 
 
-    def label_with(self, data: pd.DataFrame) -> None:
+    def label_with(self, y: pd.DataFrame) -> None:
         """Assign labels to the SOM neurons based on additional data dimensions."""
         assert self.is_trained
 
-        if data.shape[1] <= self.n_dim:
+        if y.shape[1] <= self.n_dim:
             raise ValueError(
                 f"Data must have at least {self.n_dim + 1} dimensions."
             )
 
-        self.n_labels = data.shape[1] - self.n_dim
+        self.n_labels = y.shape[1] - self.n_dim
 
-        data_scaled = self.scaler.transform(data.iloc[:, :self.n_dim])
+        data_scaled = self.scaler.transform(y.iloc[:, :self.n_dim])
         activation_map = self.somoclu.get_surface_state(data_scaled)
         bmus = self.somoclu.get_bmus(activation_map)
         self.bmus_label = bmus[:, ::-1]
@@ -76,12 +76,12 @@ class DwarfSOM:
                 bmus_in_neuron = np.where(
                     (self.bmus_label[:, 0] == row) & (self.bmus_label[:, 1] == col)
                 )[0]
-                self.neuron_label_data[(row, col)] = data.iloc[
+                self._neuron_label_data[(row, col)] = y.iloc[
                     bmus_in_neuron, self.n_dim:
                 ].values.transpose()
 
         self.is_labeled = True
-        print(f"Labeled SOM with {', '.join(data.columns[self.n_dim:].tolist())} data.")
+        print(f"Labeled SOM with {', '.join(y.columns[self.n_dim:].tolist())} data.")
 
 
     def count_bmus_per_neuron(self, bmus: np.ndarray | None=None) -> np.ndarray:
@@ -118,7 +118,7 @@ class DwarfSOM:
         label_maps = np.empty(shape=(self.n_labels, self.n_rows, self.n_columns))
         for row in range(self.n_rows):
             for col in range(self.n_columns):
-                label_data = self.neuron_label_data[(row, col)]
+                label_data = self._neuron_label_data[(row, col)]
                 if label_data.size == 0:
                     label_maps[:, row, col] = np.nan
                     continue
