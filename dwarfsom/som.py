@@ -1,5 +1,4 @@
 from somoclu import Somoclu
-from tqdm import tqdm
 import pandas as pd
 import numpy as np
 
@@ -59,9 +58,6 @@ class DwarfSOM:
     def label_with(self, data: pd.DataFrame) -> None:
         """Assign labels to the SOM neurons based on additional data dimensions."""
         assert self.is_trained
-
-        if self.is_labeled:
-            raise RuntimeError("SOM has already been labeled.")
 
         if data.shape[1] <= self.n_dim:
             raise ValueError(
@@ -149,7 +145,7 @@ class DwarfSOM:
 
         n_samples = bmus.shape[0]
         assigned_labels = np.empty(shape=(n_samples, self.n_labels))
-        for i in tqdm(range(n_samples), desc="Assigning labels"):
+        for i in range(n_samples):
             row, col = bmus[i]
             assigned_labels[i] = label_maps[:, row, col]
 
