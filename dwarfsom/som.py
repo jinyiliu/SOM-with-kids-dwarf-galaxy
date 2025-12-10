@@ -1,6 +1,7 @@
 from somoclu import Somoclu
 import pandas as pd
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
 
 class DwarfSOM:
     def __init__(
@@ -41,6 +42,7 @@ class DwarfSOM:
         self.n_labels = None
         self.bmus_label = None
         self.is_labeled = False
+        self._label_y = None
         self._neuron_label_data = {}
 
     def fit(self, X: pd.DataFrame, label_Xy: pd.DataFrame):
@@ -69,6 +71,7 @@ class DwarfSOM:
             )
 
         self.n_labels = label_Xy.shape[1] - self.n_dim
+        self._label_y = label_Xy.iloc[:, self.n_dim:]
 
         data_scaled = self.X_scaler.transform(label_Xy.iloc[:, :self.n_dim])
         activation_map = self.somoclu.get_surface_state(data_scaled)
@@ -130,6 +133,83 @@ class DwarfSOM:
                     label_maps[:, row, col] = aggfunc(label_data, axis=1)
 
         return label_maps
+
+
+    def bin_neurons_by_label(
+            self,
+            label_map: np.ndarray,
+            bin_edges: list,
+            return_neuron_weights: bool=True,
+    ) -> list[list[tuple]] | tuple[list[list[tuple]], list[np.ndarray]]:
+        """Group SOM neurons into bins based on label map values."""
+        label_indices = np.moveaxis(
+            a=np.indices(label_map.shape),
+            source=0,
+            destination=-1,
+        )
+        counts = self.count_bmus_per_neuron().astype(np.float64)
+        neuron_weights_list = []
+        neuron_coords_list = []
+
+        for label_min, label_max in zip(bin_edges[:-1], bin_edges[1:]):
+            mask = (label_map >= label_min) & (label_map < label_max)
+            neuron_coords_list.append(
+                [tuple(coord) for coord in label_indices[mask].tolist()]
+            )
+            counts_this_bin = counts[mask].flatten()
+            counts_this_bin /= counts_this_bin.sum()
+            neuron_weights_list.append(counts_this_bin)
+
+        if return_neuron_weights:
+            return neuron_coords_list, neuron_weights_list
+        else:
+            return neuron_coords_list
+
+
+    def get_weighted_label_pdf_for_neurons(
+            self,
+            neuron_coords: list[tuple[int, int]],
+            neuron_weights: np.ndarray,
+            gaussian_kde_sigmas: list[float],
+            ranges: list[tuple[float, float]],
+            n_bins: int=100,
+    ):
+        """Get weighted distribution of label values for specified neurons."""
+        assert len(neuron_coords) == len(neuron_weights)
+        assert len(ranges) == self.n_labels
+
+        pdf_array = np.empty(shape=(self.n_labels, len(neuron_coords), n_bins))
+        bin_edges_array = np.empty(shape=(self.n_labels, n_bins + 1))
+        for label, (range, sigma) in enumerate(zip(ranges, gaussian_kde_sigmas)):
+            for neuron, neuron_coord in enumerate(neuron_coords):
+                hist, bin_edges = np.histogram(
+                    a=self._neuron_label_data[neuron_coord][label],
+                    bins=n_bins,
+                    range=range,
+                    density=True,
+                )
+                bin_width = float(bin_edges[1] - bin_edges[0])
+                pdf_neuron = gaussian_filter1d(
+                    input=hist,
+                    sigma=sigma / bin_width,
+                    mode="constant", # keep the edges at zero
+                )
+                pdf_array[label, neuron] = pdf_neuron
+
+            bin_edges_array[label] = bin_edges
+            pdf_array[label] *= neuron_weights[:, np.newaxis]
+
+        return pdf_array.sum(axis=1), bin_edges_array
+
+
+    def get_label_data_for_neurons(
+            self,
+            neuron_coords: list[tuple[int, int]],
+    ) -> pd.DataFrame:
+        """Get label data for specified neurons."""
+        assert self.is_labeled
+        mask = [tuple(coord) in neuron_coords for coord in self.bmus_label]
+        return self._label_y[mask]
 
 
     def _assign_bmus_w_label_values(self, bmus, label_maps) -> np.ndarray:
