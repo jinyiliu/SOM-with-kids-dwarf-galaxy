@@ -170,7 +170,7 @@ class DwarfSOM:
             self,
             neuron_coords: list[tuple[int, int]],
             neuron_weights: np.ndarray,
-            gaussian_kde_sigmas: list[float],
+            gaussian_kde_sigmas: list[float] | list[callable],
             ranges: list[tuple[float, float]],
             n_bins: int=100,
     ):
@@ -182,21 +182,22 @@ class DwarfSOM:
         bin_edges_array = np.empty(shape=(self.n_labels, n_bins + 1))
         for label, (range, sigma) in enumerate(zip(ranges, gaussian_kde_sigmas)):
             for neuron, neuron_coord in enumerate(neuron_coords):
+                a = self._neuron_label_data[neuron_coord][label]
                 hist, bin_edges = np.histogram(
-                    a=self._neuron_label_data[neuron_coord][label],
+                    a=a,
                     bins=n_bins,
                     range=range,
                     density=True,
                 )
+                bin_edges_array[label] = bin_edges
                 bin_width = float(bin_edges[1] - bin_edges[0])
                 pdf_neuron = gaussian_filter1d(
                     input=hist,
-                    sigma=sigma / bin_width,
+                    sigma=(sigma(len(a)) if callable(sigma) else sigma) / bin_width,
                     mode="constant", # keep the edges at zero
                 )
                 pdf_array[label, neuron] = pdf_neuron
 
-            bin_edges_array[label] = bin_edges
             pdf_array[label] *= neuron_weights[:, np.newaxis]
 
         return pdf_array.sum(axis=1), bin_edges_array
@@ -257,3 +258,16 @@ class DwarfSOM:
         ).reshape(codebook.shape)
         return codebook_scaled_back
 
+
+def get_gaussian_kde_sigma_method(
+        sigma_true: float,
+        sigma_add: float,
+        power: float=-1,
+) -> callable:
+    """Get a method to compute Gaussian KDE sigma based on sample size."""
+    def gaussian_kde_sigma_method(n_samples: int) -> float:
+        return np.sqrt(
+            (1 - n_samples ** power) * sigma_true ** 2 +
+            n_samples ** power * sigma_add ** 2
+        )
+    return gaussian_kde_sigma_method
