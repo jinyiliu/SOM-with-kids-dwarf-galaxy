@@ -18,6 +18,8 @@ class DwarfSOM:
             epochs: int=100,
             X_scaler: callable=None,
     ):
+        self.gridtype = gridtype
+        self.maptype = maptype
         self.n_columns = n_columns
         self.n_rows = n_rows
         self.epochs = epochs
@@ -38,6 +40,7 @@ class DwarfSOM:
         self.n_dim = None
         self.bmus_train = None
         self.qe = None
+        self.te = None
         self.is_trained = False
 
         self.n_labels = None
@@ -60,6 +63,7 @@ class DwarfSOM:
         self.n_dim = self.somoclu.n_dim
         self.bmus_train = self.somoclu.bmus[:, ::-1]
         self.qe = self._calc_quantization_error(X_scaled=X_scaled)
+        self.te = self._calc_topographic_error(X_scaled=X_scaled)
         self.is_trained = True
 
 
@@ -276,6 +280,37 @@ class DwarfSOM:
         return qe
 
 
+    def _calc_topographic_error(
+            self,
+            X_scaled: np.ndarray | pd.DataFrame,
+    ) -> float:
+        """Calculate the topographic error."""
+        n_samples = len(X_scaled)
+        activation_map = self.somoclu.get_surface_state(X_scaled)
+        bmus_1st = self.somoclu.get_bmus(activation_map).tolist()
+
+        activation_map[
+            np.arange(n_samples), np.argmin(activation_map, axis=1)
+        ] = np.inf
+        bmus_2nd = self.somoclu.get_bmus(activation_map).tolist()
+
+        n_neighboring_bmu_pairs = 0
+        for bmu_1st, bmu_2nd in zip(bmus_1st, bmus_2nd):
+            if are_neighboring_neurons(
+                gridtype=self.gridtype,
+                maptype=self.maptype,
+                neuron_a=bmu_1st,
+                neuron_b=bmu_2nd,
+                n_rows=self.n_rows,
+                n_columns=self.n_columns,
+            ):
+                n_neighboring_bmu_pairs += 1
+
+        return 1 - n_neighboring_bmu_pairs / n_samples
+
+
+
+
 
 def get_gaussian_kde_sigma_method(
         sigma_true: float,
@@ -289,3 +324,56 @@ def get_gaussian_kde_sigma_method(
             n_samples ** power * sigma_add ** 2
         )
     return gaussian_kde_sigma_method
+
+
+def are_neighboring_neurons(
+        gridtype: str,
+        maptype: str,
+        neuron_a: list[int, int],
+        neuron_b: list[int, int],
+        n_rows: int=None,
+        n_columns: int=None,
+) -> bool:
+    """Check if two neurons are neighbors in a SOM grid."""
+    match maptype:
+        case "toroid":
+            assert n_rows is not None
+            assert n_columns is not None
+            offset = (np.inf, np.inf)
+            for a_row_shift in (-n_rows, 0, n_rows):
+                for a_column_shift in (-n_columns, 0, n_columns):
+                    neuron_a_mirror = [
+                        neuron_a[0] + a_row_shift,
+                        neuron_a[1] + a_column_shift,
+                    ]
+                    new_offset = (
+                        neuron_a_mirror[0] - neuron_b[0],
+                        neuron_a_mirror[1] - neuron_b[1],
+                    )
+                    if (
+                        abs(new_offset[0]) + abs(new_offset[1]) <
+                        abs(offset[0]) + abs(offset[1])
+                    ):
+                        offset = new_offset
+        case "planar":
+            offset = (neuron_a[0] - neuron_b[0], neuron_a[1] - neuron_b[1])
+        case _:
+            raise ValueError(f"Unknown maptype: {maptype}")
+
+    match gridtype:
+        case "rectangular":
+            return offset in [
+                (-1, 0), (1, 0), (0, -1), (0, 1)
+            ]
+        case "hexagonal":
+            neuron_b_is_even_row = (neuron_b[0] % 2 == 0)
+            if neuron_b_is_even_row:
+                return offset in [
+                    (-1, 0), (-1, 1), (0, -1), (0, 1), (1, 0), (1, 1)
+                ]
+            else:
+                return offset in [
+                    (-1, -1), (-1, 0), (0, -1), (0, 1), (1, -1), (1, 0)
+                ]
+        case _:
+            raise ValueError(f"Unknown gridtype: {gridtype}")
