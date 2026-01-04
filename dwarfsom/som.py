@@ -37,6 +37,7 @@ class DwarfSOM:
 
         self.n_dim = None
         self.bmus_train = None
+        self.qe = None
         self.is_trained = False
 
         self.n_labels = None
@@ -58,6 +59,7 @@ class DwarfSOM:
         )
         self.n_dim = self.somoclu.n_dim
         self.bmus_train = self.somoclu.bmus[:, ::-1]
+        self.qe = self._calc_quantization_error(X_scaled=X_scaled)
         self.is_trained = True
 
 
@@ -257,6 +259,22 @@ class DwarfSOM:
             codebook.reshape(-1, codebook.shape[2])
         ).reshape(codebook.shape)
         return codebook_scaled_back
+
+
+    def _calc_quantization_error(
+            self,
+            X_scaled: np.ndarray | pd.DataFrame,
+    ) -> float:
+        """Calculate the quantization error."""
+        # NOTE: Somoclu's activation map gives squared distances
+        activation_map = self.somoclu.get_surface_state(X_scaled)
+        qe = np.sqrt(
+            np.mean(
+                np.min(activation_map, axis=1)**2 / self.n_dim
+            )
+        )
+        return qe
+
 
 
 def get_gaussian_kde_sigma_method(
