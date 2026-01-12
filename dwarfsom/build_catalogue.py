@@ -6,6 +6,8 @@ import numpy as np
 from astropy.io import fits
 from astropy import table
 
+from dwarfsom.utils import prevent_on_server
+
 def Rhf2FWHM(Rhf):
     """Convert half-light radius to FWHM for a Gaussian profile."""
     return Rhf * 1.75
@@ -111,6 +113,7 @@ def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
     return df["DMAG_R"].to_dict()
 
 
+@prevent_on_server("alblas")
 def create_KiDS_photometric_catalogue(
         save_dir: str=_KiDS_DIR,
         fname: str="KiDS_panchromatic_catalogue.fits",
@@ -236,10 +239,5 @@ def fits2csv(
 
 
 if __name__ == "__main__":
-    if os.uname().nodename.split(".")[0] == "alblas":
-        raise EnvironmentError(
-            "Do not run on the node alblas. This node has not enough memory."
-        )
-
     create_KiDS_photometric_catalogue()
     create_GAMA_spectroscopic_catalogue()
