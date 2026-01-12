@@ -12,7 +12,7 @@ def Rhf2FWHM(Rhf):
     """Convert half-light radius to FWHM for a Gaussian profile."""
     return Rhf * 1.75
 
-def create_mask_for_candidate_dwarfs(
+def get_mask_for_candidate_dwarfs(
     magr, gminusr, gminusr_err, mueff, mueff_err,
 ):
     mask = gminusr - gminusr_err < 0.00085 * (magr - 13.) ** 3 + 0.83
@@ -114,10 +114,13 @@ def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
 
 
 @prevent_on_server("alblas")
-def create_KiDS_photometric_catalogue(
+def build_KiDS_panchromatic_catalogue(
         save_dir: str=_KiDS_DIR,
         fname: str="KiDS_panchromatic_catalogue.fits",
 ):
+    """Create a masked KiDS panchromatic catalogue with selected columns and
+    derived columns that are relevant for dwarf galaxy candidates selection.
+    """
     if not os.path.exists(save_dir):
         raise ValueError(f"Directory {save_dir} does not exist.")
 
@@ -174,13 +177,11 @@ def create_KiDS_photometric_catalogue(
         )
     )
 
-    mask *= create_mask_for_candidate_dwarfs(
-        cat_processed["MAG_CORR"],
-        cat_processed["COLOUR_GAAP_g_r"],
-        cat_processed["COLOURERR_GAAP_g_r"],
-        cat_processed["MU_EFF_FWHM_IMAGE"],
-        cat_processed["MAGERR_AUTO"],
-    )
+    mask *= get_mask_for_candidate_dwarfs(cat_processed["MAG_CORR"],
+                                          cat_processed["COLOUR_GAAP_g_r"],
+                                          cat_processed["COLOURERR_GAAP_g_r"],
+                                          cat_processed["MU_EFF_FWHM_IMAGE"],
+                                          cat_processed["MAGERR_AUTO"])
 
     cat_processed = cat_processed[mask]
 
@@ -192,10 +193,13 @@ def create_KiDS_photometric_catalogue(
 
 
 
-def create_GAMA_spectroscopic_catalogue(
+def build_GAMA_spectroscopic_catalogue(
         save_dir: str=_GAMA_DIR,
         fname: str="GAMA_processed_catalogue.fits",
 ):
+    """Create a GAMA spectroscopic catalogue combining gkvScienceCat and
+    StellarMassesGKV, with selected columns and masked by SC > 3.
+    """
     with fits.open(_GAMA_gkvScienceCat_path) as hdul:
          dmu_gkvScienceCat = table.Table(hdul[1].data)
 
@@ -226,18 +230,6 @@ def create_GAMA_spectroscopic_catalogue(
     )
 
 
-def fits2csv(
-        fits_savepath: str,
-        csv_savepath: str,
-        overwrite: bool=True,
-):
-    """Convert a FITS catalogue to a CSV catalogue."""
-    with fits.open(fits_savepath) as hdul:
-         cat = table.Table(hdul[1].data)
-
-    cat.write(csv_savepath, format="csv", overwrite=overwrite)
-
-
 if __name__ == "__main__":
-    create_KiDS_photometric_catalogue()
-    create_GAMA_spectroscopic_catalogue()
+    build_KiDS_panchromatic_catalogue()
+    build_GAMA_spectroscopic_catalogue()
