@@ -133,9 +133,9 @@ def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
 
 
 @prevent_on_server("alblas")
-def build_KiDS_panchromatic_catalogue(
+def build_KiDS_dwarf_candidate_catalogue(
         save_dir: str=_KiDS_DIR,
-        fname: str="KiDS_panchromatic_catalogue.fits",
+        fname: str="KiDS_dwarf_candidates.fits",
 ):
     """Create a masked KiDS panchromatic catalogue with selected columns and
     derived columns that are relevant for dwarf galaxy candidates selection.
@@ -276,6 +276,6 @@ def save_KiDS_gold_WL_csv_cat_with_selected_columns(
 
 
 if __name__ == "__main__":
-    build_KiDS_panchromatic_catalogue()
+    build_KiDS_dwarf_candidate_catalogue()
     build_GAMA_spectroscopic_catalogue()
     save_KiDS_gold_WL_csv_cat_with_selected_columns()
