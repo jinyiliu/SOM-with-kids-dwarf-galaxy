@@ -29,7 +29,7 @@ _KiDS_DIR = os.path.join(
     _DATA_DIR,
     "KiDS_DR4",
 )
-_KiDS_RAW_DATA_DIR = os.path.join(
+_KiDS_TILE_DATA_DIR = os.path.join(
     _KiDS_DIR,
     "ugriZYJHKs_tile_cats",
 )
@@ -37,6 +37,16 @@ _KiDS_DMAG_path = os.path.join(
     _KiDS_DIR,
     "KiDS_DMAG_R_zeropoint_corrections.csv",
 )
+
+_KiDS_WL_DATA_DIR = os.path.join(
+    _KiDS_DIR,
+    "KiDS_DR4.1_gold_WL_cat",
+)
+_KiDS_gold_WL_fits_cat_path = os.path.join(
+    _KiDS_WL_DATA_DIR,
+    "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits",
+)
+
 
 _KiDS_OmegaCAM_pixel_length = 0.213 # arcsec
 KiDS_photometric_bands = ["u", "g", "r", "i", "Z", "Y", "J", "H", "Ks"]
@@ -55,6 +65,15 @@ _KiDS_selected_columns = [
     "FWHM_IMAGE",
     "Z_B",
     "MU_MAX", # Peak surface brightness above background
+]
+
+_KiDS_gold_WL_selected_columns = [
+    "RAJ2000",
+    "DECJ2000",
+    "e1",
+    "e2",
+    "weight",
+    "Z_B",
 ]
 
 _GAMA_DIR = os.path.join(
@@ -98,11 +117,11 @@ def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
             "KIDS_TILE": [],
             "DMAG_R": [],
         }
-        for tile_catalogue in os.listdir(_KiDS_RAW_DATA_DIR):
+        for tile_catalogue in os.listdir(_KiDS_TILE_DATA_DIR):
             t["KIDS_TILE"].append(
                 "KIDS_" + "_".join(tile_catalogue.split("_")[2:4])
             )
-            with fits.open(os.path.join(_KiDS_RAW_DATA_DIR, tile_catalogue)) as hdul:
+            with fits.open(os.path.join(_KiDS_TILE_DATA_DIR, tile_catalogue)) as hdul:
                 t["DMAG_R"].append(
                     hdul[0].header["DMAG_R"]
                 )
@@ -120,6 +139,8 @@ def build_KiDS_panchromatic_catalogue(
 ):
     """Create a masked KiDS panchromatic catalogue with selected columns and
     derived columns that are relevant for dwarf galaxy candidates selection.
+    The output catalogue is saved in FITS format for subsequent processing in
+    TOPCAT sofware.
     """
     if not os.path.exists(save_dir):
         raise ValueError(f"Directory {save_dir} does not exist.")
@@ -197,8 +218,10 @@ def build_GAMA_spectroscopic_catalogue(
         save_dir: str=_GAMA_DIR,
         fname: str="GAMA_processed_catalogue.fits",
 ):
-    """Create a GAMA spectroscopic catalogue combining gkvScienceCat and
-    StellarMassesGKV, with selected columns and masked by SC > 3.
+    """Build a GAMA spectroscopic catalogue combining gkvScienceCat and
+    StellarMassesGKV, with selected columns and masked by SC > 3. The output
+    catalogue is saved in FITS format for subsequent processing in TOPCAT
+    sofware.
     """
     with fits.open(_GAMA_gkvScienceCat_path) as hdul:
          dmu_gkvScienceCat = table.Table(hdul[1].data)
@@ -230,6 +253,29 @@ def build_GAMA_spectroscopic_catalogue(
     )
 
 
+@prevent_on_server("alblas")
+def save_KiDS_gold_WL_csv_cat_with_selected_columns(
+        save_dir=_KiDS_WL_DATA_DIR,
+        fname="KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.csv",
+):
+    """Save a CSV version of the KiDS gold WL catalogue with selected columns."""
+    with fits.open(_KiDS_gold_WL_fits_cat_path) as hdul:
+        cat = table.Table(hdul[1].data)
+
+    cat = cat[_KiDS_gold_WL_selected_columns]
+    cat["TOMO_BIN"] = np.zeros(len(cat), dtype=int)
+    cat["TOMO_BIN"][(cat["Z_B"] > 0.1) & (cat["Z_B"] <= 0.3)] = 1
+    cat["TOMO_BIN"][(cat["Z_B"] > 0.3) & (cat["Z_B"] <= 0.5)] = 2
+    cat["TOMO_BIN"][(cat["Z_B"] > 0.5) & (cat["Z_B"] <= 0.7)] = 3
+    cat["TOMO_BIN"][(cat["Z_B"] > 0.7) & (cat["Z_B"] <= 0.9)] = 4
+    cat["TOMO_BIN"][(cat["Z_B"] > 0.9) & (cat["Z_B"] <= 1.2)] = 5
+
+    cat.write(
+        os.path.join(save_dir, fname), format="csv", overwrite=True)
+
+
+
 if __name__ == "__main__":
     build_KiDS_panchromatic_catalogue()
     build_GAMA_spectroscopic_catalogue()
+    save_KiDS_gold_WL_csv_cat_with_selected_columns()
