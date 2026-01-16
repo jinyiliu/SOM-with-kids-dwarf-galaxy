@@ -31,22 +31,28 @@ class KiDSWL:
 class KiDSDwarf:
     _cat_path = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/SOM/kids_dwarfs.csv"
     _dndz_path = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/SOM/z_pdfs_by_stellar_mass_bins.csv"
-    _dndm_path = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/SOM/logmstar_pdfs_by_stellar_mass_bins.csv"
+    _dndmstar_path = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/SOM/logmstar_pdfs_by_stellar_mass_bins.csv"
     _dndz_df = pd.read_csv(_dndz_path)
-    _dndm_df = pd.read_csv(_dndm_path)
+    _dndmstar_df = pd.read_csv(_dndmstar_path)
 
     dwarf = pd.read_csv(_cat_path)
 
     @staticmethod
-    def get_dndz(mbin: int) -> tuple[np.ndarray, np.ndarray]:
+    def get_dndz(mbin: int, bin_center: bool=True) -> tuple[np.ndarray, np.ndarray]:
         """Return the normalized dN/dz for the given stellar mass bin."""
         z = KiDSDwarf._dndz_df["BIN_START"].values
+        if bin_center:
+            z += KiDSDwarf._dndz_df["BIN_END"].values
+            z /= 2
         dndz = KiDSDwarf._dndz_df[f"BIN_{mbin}"].values
         return z, dndz
 
     @staticmethod
-    def get_dndm(mbin: int) -> tuple[np.ndarray, np.ndarray]:
+    def get_dndmstar(mstarbin: int, bin_center: bool=True) -> tuple[np.ndarray, np.ndarray]:
         """Return the normalized dN/dlogM* for the given stellar mass bin."""
-        logm = KiDSDwarf._dndm_df["BIN_START"].values
-        dndm = KiDSDwarf._dndm_df[f"BIN_{mbin}"].values
-        return logm, dndm
+        logmstar = KiDSDwarf._dndmstar_df["BIN_START"].values
+        if bin_center:
+            logmstar += KiDSDwarf._dndmstar_df["BIN_END"].values
+            logmstar /= 2
+        dndmstar = KiDSDwarf._dndmstar_df[f"BIN_{mstarbin}"].values
+        return logmstar, dndmstar
