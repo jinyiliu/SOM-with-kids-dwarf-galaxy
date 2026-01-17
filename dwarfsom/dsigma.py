@@ -15,6 +15,25 @@ class Lens:
     dndmstar: tuple[np.ndarray, np.ndarray]
     w: np.ndarray | None = None
 
+    def __eq__(self, other):
+        if not isinstance(other, Lens):
+            return False
+        ret = (
+            np.array_equal(self.ra, other.ra) and
+            np.array_equal(self.dec, other.dec) and
+            np.array_equal(self.dndz[0], other.dndz[0]) and
+            np.array_equal(self.dndz[1], other.dndz[1]) and
+            np.array_equal(self.dndmstar[0], other.dndmstar[0]) and
+            np.array_equal(self.dndmstar[1], other.dndmstar[1]) and
+            (
+                (self.w is None and other.w is None) or
+                np.array_equal(self.w, other.w)
+            )
+        )
+        return ret
+
+
+
 @dataclass
 class Source:
     ra: np.ndarray
@@ -89,6 +108,7 @@ class DSigma:
         # Multiplicative shear bias correction
         self.dsigma_tangential /= (1 + self.source.m)
         self.dsigma_cross /= (1 + self.source.m)
+        self.cov /= (1 + self.source.m)**2
 
 
     def get_boost(self): # TODO
@@ -125,3 +145,26 @@ class DSigma:
         radian = hMpc / DA
         degree = radian * 180. / np.pi
         return degree
+
+
+def get_combined_dsigma(dsigma_list: list[DSigma]):
+    """Combine multiple DSigma measurements by inverse-variance weighting."""
+    assert dsigma_list[0].lens == dsigma_list[1].lens == dsigma_list[2].lens
+    mean_rp = dsigma_list[0].mean_rp
+    dsigma_tangential = np.tile(mean_rp, (len(dsigma_list), 1))
+    weights = np.tile(mean_rp, (len(dsigma_list), 1))
+    var = np.tile(mean_rp, (len(dsigma_list), 1))
+
+    for i, dsigma in enumerate(dsigma_list):
+        dsigma_tangential[i] = dsigma.dsigma_tangential
+        weights[i] = np.diag(dsigma.cov) ** -1
+        var[i] = np.diag(dsigma.cov)
+
+    dsigma_tangential = np.average(
+        dsigma_tangential,
+        weights=weights,
+        axis=0,
+    )
+    var = 1 / np.sum(1 / var, axis=0)
+
+    return mean_rp, dsigma_tangential, var
