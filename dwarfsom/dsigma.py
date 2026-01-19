@@ -1,3 +1,5 @@
+import os.path
+from glob import glob
 import numpy as np
 
 from dataclasses import dataclass
@@ -50,13 +52,76 @@ class Random:
     dec: np.ndarray
     w: np.ndarray | None = None
 
+    @staticmethod
+    def build_random_catalogues(
+            n_randoms: int,
+            n_catalogues: int,
+            savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/randoms/",
+    ):
+        RA_Dec_ranges = [
+            [(329.5, 360.), (-36.6, -25.7)], # KiDS-S
+            [(0., 53.5), (-36.6, -25.7)],  # KiDS-S
+            [(156., 238.), (-5., 4.)], # KiDS-N
+            [(128.5, 141.7), (-2., 3.)], # KiDS-N-W2
+        ]
+        sky_areas = [
+            calculate_sky_area(RA_range, Dec_range)
+            for RA_range, Dec_range in RA_Dec_ranges
+        ]
+        n_randoms_field = [
+            int(np.round(n_randoms * sky_area / sum(sky_areas)))
+            for sky_area in sky_areas
+        ]
+
+        fname = "random_catalogue_{}.csv"
+        if not os.path.exists(savedir):
+            os.makedirs(savedir)
+
+        for i in range(n_catalogues):
+            coords = np.empty((2, n_randoms))
+            for field in range(len(RA_Dec_ranges)):
+                RA_range, Dec_range = RA_Dec_ranges[field]
+                ra_random = np.random.uniform(
+                    low=RA_range[0],
+                    high=RA_range[1],
+                    size=n_randoms_field[field],
+                )
+                breakpoint()
+                dec_random = np.degrees(np.arcsin(
+                    np.random.uniform(
+                        low=np.sin(np.radians(Dec_range[0])),
+                        high=np.sin(np.radians(Dec_range[1])),
+                        size=n_randoms_field[field],
+                    )
+                ))
+                start_idx = sum(n_randoms_field[:field])
+                end_idx = start_idx + n_randoms_field[field]
+                coords[0, start_idx:end_idx] = ra_random
+                coords[1, start_idx:end_idx] = dec_random
+
+            np.savetxt(
+                fname=os.path.join(savedir, fname.format(i + 1)),
+                X=coords.transpose(),
+                delimiter=",",
+                header="RAJ2000,DECJ2000",
+            )
+
+
+    @classmethod
+    def from_random_catalogue(cls, fname: str) -> "Random":
+        data = np.loadtxt(fname, delimiter=",", skiprows=1, unpack=True)
+        ra = data[0]
+        dec = data[1]
+        return cls(ra=ra, dec=dec)
+
+
 
 class DSigma:
     def __init__(
             self,
             lens: Lens,
             source: Source,
-            random: Random | None=None,
+            randoms: list[Random] | None=None,
             cosmo=cosmo_default,
             n_rp_bins: int=8,
             min_rp: float=0.01,
@@ -65,7 +130,7 @@ class DSigma:
         """Excess Surface Density Estimator using TreeCorr."""
         self.lens = lens
         self.source = source
-        self.random = random
+        self.randoms = randoms
         self.cosmo = cosmo
         self.n_rp_bins = n_rp_bins
         self.min_rp = min_rp
@@ -133,7 +198,7 @@ class DSigma:
             a=self.cosmo.angular_diameter_distance(self.lens.dndz[0]).value,
             weights=self.lens.dndz[1],
         )
-        radian = degree * np.pi / 180.
+        radian = np.radians(degree)
         hMpc = radian * DA
         return hMpc
 
@@ -143,7 +208,7 @@ class DSigma:
             weights=self.lens.dndz[1],
         )
         radian = hMpc / DA
-        degree = radian * 180. / np.pi
+        degree = np.degrees(radian)
         return degree
 
 
@@ -168,3 +233,29 @@ def get_combined_dsigma(dsigma_list: list[DSigma]):
     var = 1 / np.sum(1 / var, axis=0)
 
     return mean_rp, dsigma_tangential, var
+
+
+def get_list_Random_catalogues(
+        savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/randoms/",
+) -> list[Random]:
+    ret = []
+    savepaths = sorted(glob(os.path.join(savedir, "*.csv")))
+    for savepath in savepaths:
+        ret.append(Random.from_random_catalogue(savepath))
+    return ret
+
+
+
+def calculate_sky_area(ra_range, dec_range):
+    """
+    Calculate the sky area in square degrees given RA and Dec ranges.
+    RA is in degrees with 0 <= RA < 360.
+    Dec is in degrees with -90 <= Dec <= 90.
+    """
+    DeltaRA = ra_range[1] - ra_range[0]
+    if DeltaRA < 0:
+        DeltaRA += 360.
+    DeltaSinDec = np.sin(np.radians(dec_range[1])) - np.sin(np.radians(dec_range[0]))
+
+    area = DeltaRA * np.degrees(DeltaSinDec)
+    return area
