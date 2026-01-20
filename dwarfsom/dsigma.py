@@ -139,37 +139,46 @@ class DSigma:
 
         self._effective_sigma_crit = self.effective_critical_surface_density()
 
-        lens = Catalog(
+        self.ng_lens = Catalog(
             ra=lens.ra, ra_units="degrees",
             dec=lens.dec, dec_units="degrees",
             w=self.lens.w,
         )
-        source = Catalog(
+        self.ng_source = Catalog(
             ra=self.source.ra, ra_units="degrees",
             dec=self.source.dec, dec_units="degrees",
             g1=self.source.e1, g2=self.source.e2,
             w=self.source.w,
         )
-        ng = NGCorrelation(
-            min_sep=self.hMpc2degree(self.min_rp),
-            max_sep=self.hMpc2degree(self.max_rp),
-            nbins=self.n_rp_bins,
-            sep_units="degree",
-        )
-        ng.process(lens, source)
+        self.config = {
+            "min_sep": self.hMpc2degree(self.min_rp),
+            "max_sep": self.hMpc2degree(self.max_rp),
+            "nbins": self.n_rp_bins,
+            "sep_units": "degree",
+        }
+
+        ng = NGCorrelation(self.config)
+        ng.process(self.ng_lens, self.ng_source, num_threads=1)
 
         self.dsigma_tangential = ng.xi * self._effective_sigma_crit
         self.dsigma_cross = ng.xi_im * self._effective_sigma_crit
         self.cov = ng.cov * self._effective_sigma_crit**2
         self.mean_rp = self.degree2hMpc(ng.meanr)
 
-        if self.random is not None:
-            self.boost = ...
-            self.dsigma_rand = ...
+        if self.randoms is not None:
+            self._ng_npairs = ng.npairs
+            self._boost_list = np.empty(
+                shape=(len(self.randoms), self.n_rp_bins)
+            )
+            self._dsigma_rand_list = np.empty(
+                shape=(2, len(self.randoms), self.n_rp_bins)
+            )
+            self.boost, self.dsigma_rand = self.calc_rand_corrections()
             self.dsigma_tangential *= self.boost
             self.dsigma_cross *= self.boost
             self.dsigma_tangential -= self.dsigma_rand[0]
             self.dsigma_cross -= self.dsigma_rand[1]
+            self.cov *= self.boost**2
 
         # Multiplicative shear bias correction
         self.dsigma_tangential /= (1 + self.source.m)
@@ -177,11 +186,27 @@ class DSigma:
         self.cov /= (1 + self.source.m)**2
 
 
-    def get_boost(self): # TODO
-        assert self.random is not None
+    def calc_rand_corrections(self):
+        ng_rand = NGCorrelation(self.config)
+        for i in range(len(self.randoms)):
+            print(f"Calculating random corrections for random catalogue {i + 1}.")
+            random_Catalog = Catalog(
+                ra=self.randoms[i].ra, ra_units="degrees",
+                dec=self.randoms[i].dec, dec_units="degrees",
+                w=self.randoms[i].w,
+            )
+            ng_rand.process(random_Catalog, self.ng_source, num_threads=1)
+            self._boost_list[i] = (self._ng_npairs / ng_rand.npairs)
+            self._dsigma_rand_list[0][i] = ng_rand.xi * self._effective_sigma_crit
+            self._dsigma_rand_list[1][i] = ng_rand.xi_im * self._effective_sigma_crit
+            ng_rand.clear()
 
-    def get_dsigma_rand(self): # TODO
-        assert self.random is not None
+        boost = np.average(self._boost_list, axis=0)
+        dsigma_rand_tangential = np.average(self._dsigma_rand_list[0], axis=0)
+        disgma_rand_cross = np.average(self._dsigma_rand_list[1], axis=0)
+
+        return boost, (dsigma_rand_tangential, disgma_rand_cross)
+
 
     def effective_critical_surface_density(self):
         z_l, z_s = np.meshgrid(self.lens.dndz[0], self.source.dndz[0], indexing="ij")
@@ -239,6 +264,7 @@ def get_combined_dsigma(dsigma_list: list[DSigma]):
 def get_list_Random_catalogues(
         savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/randoms/",
 ) -> list[Random]:
+    """Load all random catalogues from the savedir."""
     ret = []
     savepaths = sorted(glob(os.path.join(savedir, "*.csv")))
     for savepath in savepaths:
