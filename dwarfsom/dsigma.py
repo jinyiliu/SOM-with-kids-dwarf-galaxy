@@ -105,8 +105,9 @@ class Random:
                 "RAJ2000": coords[0],
                 "DECJ2000": coords[1],
             })
-            df.to_csv(os.path.join(savedir, fname.format(i + 1)))
-            print(f"Saved random catalogue {i + 1} to {savedir}.")
+            savepath = os.path.join(savedir, fname.format(i + 1))
+            df.to_csv(savepath, index=False)
+            print(f"Saved random catalogue {i + 1} to {savepath}.")
 
 
     @classmethod
@@ -168,10 +169,10 @@ class DSigma:
 
         if self.randoms is not None:
             self._ng_npairs = ng.npairs
-            self._boost_list = np.empty(
+            self._boost_array = np.empty(
                 shape=(len(self.randoms), self.n_rp_bins)
             )
-            self._dsigma_rand_list = np.empty(
+            self._dsigma_rand_array = np.empty(
                 shape=(2, len(self.randoms), self.n_rp_bins)
             )
             self.boost, self.dsigma_rand = self.calc_rand_corrections()
@@ -197,14 +198,14 @@ class DSigma:
                 w=self.randoms[i].w,
             )
             ng_rand.process(random_Catalog, self.ng_source, num_threads=1)
-            self._boost_list[i] = (self._ng_npairs / ng_rand.npairs)
-            self._dsigma_rand_list[0][i] = ng_rand.xi * self._effective_sigma_crit
-            self._dsigma_rand_list[1][i] = ng_rand.xi_im * self._effective_sigma_crit
+            self._boost_array[i] = (self._ng_npairs / ng_rand.npairs)
+            self._dsigma_rand_array[0][i] = ng_rand.xi * self._effective_sigma_crit
+            self._dsigma_rand_array[1][i] = ng_rand.xi_im * self._effective_sigma_crit
             ng_rand.clear()
 
-        boost = np.average(self._boost_list, axis=0)
-        dsigma_rand_tangential = np.average(self._dsigma_rand_list[0], axis=0)
-        disgma_rand_cross = np.average(self._dsigma_rand_list[1], axis=0)
+        boost = np.average(self._boost_array, axis=0)
+        dsigma_rand_tangential = np.average(self._dsigma_rand_array[0], axis=0)
+        disgma_rand_cross = np.average(self._dsigma_rand_array[1], axis=0)
 
         return boost, (dsigma_rand_tangential, disgma_rand_cross)
 
@@ -220,6 +221,30 @@ class DSigma:
         )
         return sigma_crit_eff
 
+
+    def save(
+            self,
+            fname: str,
+            savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
+    ):
+        assert fname.endswith(".csv")
+        df = pd.DataFrame({
+            "mean_rp_hMpc": self.mean_rp,
+            "dsigma_tangential": self.dsigma_tangential,
+            "dsigma_cross": self.dsigma_cross,
+            "dsigma_stderr": np.sqrt(np.diag(self.cov)),
+            "boost": self.boost,
+            "dsigma_rand_tangential": self.dsigma_rand[0],
+            "dsigma_rand_cross": self.dsigma_rand[1],
+        })
+        for i in range(len(self.randoms)):
+            df[f"boost_randcat_{i + 1:02d}"] = self._boost_array[i]
+            df[f"dsigma_rand_tangential_randcat_{i + 1:02d}"] = self._dsigma_rand_array[0][i]
+            df[f"dsigma_rand_cross_randcat_{i + 1:02d}"] = self._dsigma_rand_array[1][i]
+
+        df.to_csv(os.path.join(savedir, fname), index=False)
+
+
     def degree2hMpc(self, degree: np.ndarray | float):
         DA = np.average(
             a=self.cosmo.angular_diameter_distance(self.lens.dndz[0]).value,
@@ -228,6 +253,7 @@ class DSigma:
         radian = np.radians(degree)
         hMpc = radian * DA
         return hMpc
+
 
     def hMpc2degree(self, hMpc: np.ndarray | float):
         DA = np.average(
