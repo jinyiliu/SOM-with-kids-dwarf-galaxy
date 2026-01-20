@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from functools import wraps
 
 from astropy import table
@@ -30,3 +31,15 @@ def fits2csv(
 
     cat.write(csv_savepath, format="csv", overwrite=overwrite)
 
+def calculate_sky_area(ra_range: tuple[float], dec_range: tuple[float]):
+    """
+    Calculate the sky area in square degrees given RA and Dec ranges.
+    RA is in degrees with 0 <= RA < 360.
+    Dec is in degrees with -90 <= Dec <= 90.
+    """
+    DeltaRA = ra_range[1] - ra_range[0]
+    if DeltaRA < 0:
+        DeltaRA += 360.
+    DeltaSinDec = np.sin(np.radians(dec_range[1])) - np.sin(np.radians(dec_range[0]))
+    area = DeltaRA * np.degrees(DeltaSinDec)
+    return area

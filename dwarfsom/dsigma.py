@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from astropy.cosmology import FlatLambdaCDM
 from treecorr import NGCorrelation, Catalog
 from dsigma.physics import critical_surface_density
+from dwarfsom.utils import calculate_sky_area
 
 cosmo_default = FlatLambdaCDM(H0=100, Om0=0.3)
 
@@ -245,17 +246,3 @@ def get_list_Random_catalogues(
     return ret
 
 
-
-def calculate_sky_area(ra_range, dec_range):
-    """
-    Calculate the sky area in square degrees given RA and Dec ranges.
-    RA is in degrees with 0 <= RA < 360.
-    Dec is in degrees with -90 <= Dec <= 90.
-    """
-    DeltaRA = ra_range[1] - ra_range[0]
-    if DeltaRA < 0:
-        DeltaRA += 360.
-    DeltaSinDec = np.sin(np.radians(dec_range[1])) - np.sin(np.radians(dec_range[0]))
-
-    area = DeltaRA * np.degrees(DeltaSinDec)
-    return area
