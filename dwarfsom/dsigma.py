@@ -118,6 +118,45 @@ class Random:
         return cls(ra=ra, dec=dec)
 
 
+@dataclass
+class DSigmaData:
+    mean_rp: np.ndarray
+    npairs: np.ndarray
+    dsigma_tangential: np.ndarray
+    dsigma_cross: np.ndarray
+    dsigma_stderr: np.ndarray
+    boost: np.ndarray
+    dsigma_rand_tangential: np.ndarray
+    dsigma_rand_cross: np.ndarray
+    boost_array: np.ndarray
+    dsigma_rand_array: np.ndarray
+
+
+    @classmethod
+    def from_file(
+            cls,
+            fname: str,
+            savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
+    ) -> "DSigmaData":
+        df = pd.read_csv(os.path.join(savedir, fname))
+        boost_array = df.filter(like="boost_randcat").values.T
+        dsigma_rand_array = np.vstack((
+            [df.filter(like="dsigma_rand_tangential_randcat").values.T],
+            [df.filter(like="dsigma_rand_cross_randcat").values.T],
+        ))
+        return cls(
+            mean_rp=df["mean_rp_hMpc"].values,
+            npairs=df["npairs"].values,
+            dsigma_tangential=df["dsigma_tangential"].values,
+            dsigma_cross=df["dsigma_cross"].values,
+            dsigma_stderr=df["dsigma_stderr"].values,
+            boost=df["boost"].values,
+            dsigma_rand_tangential=df["dsigma_rand_tangential"].values,
+            dsigma_rand_cross=df["dsigma_rand_cross"].values,
+            boost_array=boost_array,
+            dsigma_rand_array=dsigma_rand_array,
+        )
+
 
 class DSigma:
     def __init__(
@@ -141,12 +180,12 @@ class DSigma:
 
         self._effective_sigma_crit = self.effective_critical_surface_density()
 
-        self.ng_lens = Catalog(
+        self.lens_Catalog = Catalog(
             ra=lens.ra, ra_units="degrees",
             dec=lens.dec, dec_units="degrees",
             w=self.lens.w,
         )
-        self.ng_source = Catalog(
+        self.source_Catalog = Catalog(
             ra=self.source.ra, ra_units="degrees",
             dec=self.source.dec, dec_units="degrees",
             g1=self.source.e1, g2=self.source.e2,
@@ -160,7 +199,7 @@ class DSigma:
         }
 
         ng = NGCorrelation(self.config)
-        ng.process(self.ng_lens, self.ng_source, num_threads=1)
+        ng.process(self.lens_Catalog, self.source_Catalog)
 
         self.dsigma_tangential = ng.xi * self._effective_sigma_crit
         self.dsigma_cross = ng.xi_im * self._effective_sigma_crit
@@ -199,6 +238,11 @@ class DSigma:
             )
             ng_rand.process(random_Catalog, self.ng_source, num_threads=1)
             self._boost_array[i] = (self._ng_npairs / ng_rand.npairs)
+            ng_rand.process(random_Catalog, self.source_Catalog)
+            self._boost_array[i] = (
+                    (self._ng_npairs / len(self.lens.ra)) /
+                    (ng_rand.npairs / len(self.randoms[i].ra))
+            )
             self._dsigma_rand_array[0][i] = ng_rand.xi * self._effective_sigma_crit
             self._dsigma_rand_array[1][i] = ng_rand.xi_im * self._effective_sigma_crit
             ng_rand.clear()
@@ -230,6 +274,7 @@ class DSigma:
         assert fname.endswith(".csv")
         df = pd.DataFrame({
             "mean_rp_hMpc": self.mean_rp,
+            "npairs": self._ng_npairs,
             "dsigma_tangential": self.dsigma_tangential,
             "dsigma_cross": self.dsigma_cross,
             "dsigma_stderr": np.sqrt(np.diag(self.cov)),
