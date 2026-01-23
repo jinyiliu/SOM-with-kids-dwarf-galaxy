@@ -207,7 +207,7 @@ class DSigma:
         self.mean_rp = self.degree2hMpc(ng.meanr)
 
         if self.randoms is not None:
-            self._ng_npairs = ng.npairs
+            self._weighted_npairs = ng.weight
             self._boost_array = np.empty(
                 shape=(len(self.randoms), self.n_rp_bins)
             )
@@ -236,12 +236,10 @@ class DSigma:
                 dec=self.randoms[i].dec, dec_units="degrees",
                 w=self.randoms[i].w,
             )
-            ng_rand.process(random_Catalog, self.ng_source, num_threads=1)
-            self._boost_array[i] = (self._ng_npairs / ng_rand.npairs)
             ng_rand.process(random_Catalog, self.source_Catalog)
             self._boost_array[i] = (
-                    (self._ng_npairs / len(self.lens.ra)) /
-                    (ng_rand.npairs / len(self.randoms[i].ra))
+                    (self._weighted_npairs / len(self.lens.ra)) /
+                    (ng_rand.weight / len(self.randoms[i].ra))
             )
             self._dsigma_rand_array[0][i] = ng_rand.xi * self._effective_sigma_crit
             self._dsigma_rand_array[1][i] = ng_rand.xi_im * self._effective_sigma_crit
@@ -274,7 +272,7 @@ class DSigma:
         assert fname.endswith(".csv")
         df = pd.DataFrame({
             "mean_rp_hMpc": self.mean_rp,
-            "npairs": self._ng_npairs,
+            "npairs": self._weighted_npairs,
             "dsigma_tangential": self.dsigma_tangential,
             "dsigma_cross": self.dsigma_cross,
             "dsigma_stderr": np.sqrt(np.diag(self.cov)),
