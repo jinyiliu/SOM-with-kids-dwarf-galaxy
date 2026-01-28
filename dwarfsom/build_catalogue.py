@@ -133,6 +133,27 @@ def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
 
 
 @prevent_on_server("alblas")
+def build_KiDS_footprint_catalogue(
+        save_dir: str=_KiDS_DIR,
+        fname: str="KiDS_footprint.fits",
+):
+    merged_photometry_cat_path = os.path.join(
+        "/net/eemmeer",
+        "data2/KiDS/KiDS-1000/ESO-DR4-photometry-catalogues",
+        "KiDS.DR4.merged.fits",
+    )
+    with fits.open(merged_photometry_cat_path) as hdul:
+        cat = table.Table(hdul[1].data)
+
+    cat = cat[["RAJ2000", "DECJ2000"]]
+    cat.write(
+        os.path.join(save_dir, fname),
+        format="fits",
+        overwrite=True,
+    )
+
+
+@prevent_on_server("alblas")
 def build_KiDS_dwarf_candidate_catalogue(
         save_dir: str=_KiDS_DIR,
         fname: str="KiDS_dwarf_candidates.fits",
@@ -276,6 +297,7 @@ def save_KiDS_gold_WL_csv_cat_with_selected_columns(
 
 
 if __name__ == "__main__":
+    build_KiDS_footprint_catalogue()
     build_KiDS_dwarf_candidate_catalogue()
     build_GAMA_spectroscopic_catalogue()
     save_KiDS_gold_WL_csv_cat_with_selected_columns()
