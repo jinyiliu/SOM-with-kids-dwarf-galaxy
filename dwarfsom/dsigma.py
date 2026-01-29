@@ -2,6 +2,8 @@ import os.path
 from glob import glob
 import numpy as np
 import pandas as pd
+from astropy.table import Table
+from astropy.io import fits
 
 from natsort import natsorted
 from dataclasses import dataclass
@@ -62,9 +64,9 @@ class Random:
             savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/randoms/",
     ):
         RA_Dec_ranges = [
-            [(329.5, 360.), (-36.6, -25.7)], # KiDS-S
-            [(0., 53.5), (-36.6, -25.7)],  # KiDS-S
-            [(156., 238.), (-5., 4.)], # KiDS-N
+            [(330., 360.), (-35.6, -27.)], # KiDS-S
+            [(0., 53.9), (-35.6, -27.)],  # KiDS-S
+            [(157., 237.3), (-4., 3.)], # KiDS-N
             [(128.5, 141.7), (-2., 3.)], # KiDS-N-W2
         ]
         sky_areas = [
@@ -76,7 +78,7 @@ class Random:
             for sky_area in sky_areas
         ]
 
-        fname = "random_catalogue_{:02d}.csv"
+        fname = "raw_random_catalogue_{:02d}.fits"
         if not os.path.exists(savedir):
             os.makedirs(savedir)
 
@@ -105,16 +107,18 @@ class Random:
                 "RAJ2000": coords[0],
                 "DECJ2000": coords[1],
             })
+            table = Table.from_pandas(df)
             savepath = os.path.join(savedir, fname.format(i + 1))
-            df.to_csv(savepath, index=False)
+            table.write(savepath, format="fits", overwrite=True)
             print(f"Saved random catalogue {i + 1} to {savepath}.")
 
 
     @classmethod
     def from_random_catalogue(cls, savepath: str) -> "Random":
-        df = pd.read_csv(savepath)
-        ra = df["RAJ2000"].values
-        dec = df["DECJ2000"].values
+        with fits.open(savepath) as hdul:
+            data = hdul[1].data
+            ra = data["RAJ2000"]
+            dec = data["DECJ2000"]
         return cls(ra=ra, dec=dec)
 
 
@@ -336,7 +340,7 @@ def get_list_Random_catalogues(
 ) -> list[Random]:
     """Load all random catalogues from the savedir."""
     ret = []
-    savepaths = natsorted(glob(os.path.join(savedir, "*.csv")))
+    savepaths = natsorted(glob(os.path.join(savedir, "*.fits")))
     for savepath in savepaths:
         print("Loading random catalogue from:", savepath)
         ret.append(Random.from_random_catalogue(savepath))
