@@ -14,6 +14,16 @@ def fits2csv(
 
     cat.write(csv_savepath, format="csv", overwrite=overwrite)
 
+def csv2fits(
+        csv_savepath: str,
+        fits_savepath: str,
+        overwrite: bool=True,
+):
+    """Convert a CSV catalogue to a FITS catalogue."""
+    cat = table.Table.read(csv_savepath, format="csv")
+    cat.write(fits_savepath, format="fits", overwrite=overwrite)
+
+
 def calculate_sky_area(ra_range: tuple[float], dec_range: tuple[float]):
     """
     Calculate the sky area in square degrees given RA and Dec ranges.
