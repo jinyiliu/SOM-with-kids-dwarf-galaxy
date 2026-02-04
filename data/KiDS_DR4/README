@@ -1,10 +1,22 @@
 The KiDS DR4 release website is available at:
 https://kids.strw.leidenuniv.nl/DR4/
 
-To get the data for all 1006 tiles, please run the following script in the terminal:
+To get the photometry data for all 1006 tiles, please run the following script in the terminal:
 
 cd /data1/jliu/SOM-with-kids-dwarf-galaxy/data/KiDS_DR4
 mkdir fitscats
 wget -P fitscats/ -i kids_dr4.0_download_list.txt
 
 DR4.1 is a minor update to DR4.0, which fixes some issues with the photometric calibration and adds a few missing tiles.
+
+The KiDS DR4 offers the basic random catalogues, which are available at:
+http://cuillin.roe.ac.uk/~cech/KiDS/KiDS-1000/BASIC_RANDOMS/
+
+There are 1011 tiles in the BASIC_RANDOMS, 5 out of which are not included in the photometry data, with tile centres at (RA, Dec) = (28.5, -29.2), (48.2, -27.2), (195.0, 1.5), (210.0, -0.5), (356.5, -30.2). Run the following script to download the random catalogues for all 1011 tiles:
+
+cd /data1/jliu/SOM-with-kids-dwarf-galaxy/data/KiDS_DR4
+mkdir BASIC_RANDOMS
+cd BASIC_RANDOMS
+wget --user=KiDS_Collaboration --ask-password -r -np -nc -R "index.html*" --no-directories "http://cuillin.roe.ac.uk/~cech/KiDS/KiDS-1000/BASIC_RANDOMS/"
+
+On server alblas.strw.leidenuniv.nl, the photometry data and the random catalogues are stored at: /data2/jliu/som_data/KiDS_DR4/fitscats/ and /data2/jliu/som_data/KiDS_DR4/BASIC_RANDOMS/, respectively.
