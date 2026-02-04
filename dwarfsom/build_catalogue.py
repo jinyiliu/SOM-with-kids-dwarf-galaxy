@@ -34,32 +34,15 @@ def get_mask_for_candidate_dwarfs(
 
 
 _NODE_DIR = "/net/alblas"
-_DATA_DIR = os.path.join(
-    _NODE_DIR,
-    "data1/jliu/SOM-with-kids-dwarf-galaxy/data",
-)
-_KiDS_DIR = os.path.join(
-    _DATA_DIR,
-    "KiDS_DR4",
-)
-_KiDS_TILE_DATA_DIR = os.path.join(
-    _KiDS_DIR,
-    "ugriZYJHKs_tile_cats",
-)
-_KiDS_DMAG_path = os.path.join(
-    _KiDS_DIR,
-    "KiDS_DMAG_R_zeropoint_corrections.csv",
-)
+_DATA_DIR = os.path.join(_NODE_DIR, "data1/jliu/SOM-with-kids-dwarf-galaxy/data")
 
-_KiDS_WL_DATA_DIR = os.path.join(
-    _KiDS_DIR,
-    "KiDS_DR4.1_gold_WL_cat",
-)
-_KiDS_gold_WL_fits_cat_path = os.path.join(
-    _KiDS_WL_DATA_DIR,
-    "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits",
-)
-
+_KiDS_DIR = os.path.join(_DATA_DIR, "KiDS_DR4")
+_KiDS_TILE_DATA_DIR = os.path.join(_KiDS_DIR, "ugriZYJHKs_tile_cats")
+_KiDS_DMAG_path = os.path.join(_KiDS_DIR, "KiDS_DMAG_R_zeropoint_corrections.csv")
+_KiDS_WL_DATA_DIR = os.path.join(_KiDS_DIR, "KiDS_DR4.1_gold_WL_cat")
+_KiDS_gold_WL_fits_cat_path = os.path.join(_KiDS_WL_DATA_DIR, "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits")
+_KiDS_BASIC_RANDOMS_DIR = os.path.join(_KiDS_DIR, "BASIC_RANDOMS")
+_KiDS_RANDOMS_DIR = os.path.join(_KiDS_DIR, "randoms")
 
 _KiDS_OmegaCAM_pixel_length = 0.213 # arcsec
 KiDS_photometric_bands = ["u", "g", "r", "i", "Z", "Y", "J", "H", "Ks"]
@@ -89,18 +72,10 @@ _KiDS_gold_WL_selected_columns = [
     "Z_B",
 ]
 
-_GAMA_DIR = os.path.join(
-    _DATA_DIR,
-    "GAMA_DR4",
-)
-_GAMA_gkvScienceCat_path = os.path.join(
-    _GAMA_DIR,
-    "gkvScienceCatv02.fits",
-)
-_GAMA_StellarMasses_path = os.path.join(
-    _GAMA_DIR,
-    "StellarMassesGKVv24.fits",
-)
+_GAMA_DIR = os.path.join(_DATA_DIR, "GAMA_DR4")
+_GAMA_gkvScienceCat_path = os.path.join(_GAMA_DIR, "gkvScienceCatv02.fits")
+_GAMA_StellarMasses_path = os.path.join(_GAMA_DIR, "StellarMassesGKVv24.fits")
+
 _GAMA_selected_columns_gkvScienceCat = [
     "uberID",
     "RAcen", # RA of flux-weighted centre (ICRS)
