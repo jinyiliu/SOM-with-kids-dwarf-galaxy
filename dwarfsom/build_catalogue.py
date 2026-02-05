@@ -40,9 +40,10 @@ _KiDS_DIR = os.path.join(_DATA_DIR, "KiDS_DR4")
 _KiDS_TILE_DATA_DIR = os.path.join(_KiDS_DIR, "ugriZYJHKs_tile_cats")
 _KiDS_DMAG_path = os.path.join(_KiDS_DIR, "KiDS_DMAG_R_zeropoint_corrections.csv")
 _KiDS_WL_DATA_DIR = os.path.join(_KiDS_DIR, "KiDS_DR4.1_gold_WL_cat")
-_KiDS_gold_WL_fits_cat_path = os.path.join(_KiDS_WL_DATA_DIR, "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits")
+_KiDS_gold_WL_FITS_path = os.path.join(_KiDS_WL_DATA_DIR, "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits")
+KiDS_gold_WL_CSV_path = os.path.join(_KiDS_WL_DATA_DIR, "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.csv")
 _KiDS_BASIC_RANDOMS_DIR = os.path.join(_KiDS_DIR, "BASIC_RANDOMS")
-_KiDS_RANDOMS_DIR = os.path.join(_KiDS_DIR, "randoms")
+KiDS_RANDOMS_DIR = os.path.join(_KiDS_DIR, "randoms")
 
 _KiDS_OmegaCAM_pixel_length = 0.213 # arcsec
 KiDS_photometric_bands = ["u", "g", "r", "i", "Z", "Y", "J", "H", "Ks"]
@@ -210,17 +211,25 @@ def build_KiDS_dwarf_candidate_catalogue(
 
 @prevent_on_server("alblas")
 def build_KiDS_random_catalogues(
-        n_randdoms_per_tile: int=6000,
-        save_dir: str=_KiDS_RANDOMS_DIR,
+        fraction_per_tile: int=0.007,
+        save_dir: str=KiDS_RANDOMS_DIR,
         overwrite: bool=False,
 ):
-    """Merge the BASIC_RANDOMS tile catalogues into a single catalogue."""
+    """Build KiDS random catalogues by sampling from the KiDS BASIC RANDOMS.
+
+    Args:
+        fraction_per_tile: Fraction of the randoms per tile to include in each catalogue.
+        save_dir:
+        overwrite:
+    """
+    assert 0. < fraction_per_tile < 1.
+
     tiles = [
         tile for tile in os.listdir(_KiDS_BASIC_RANDOMS_DIR)
         if not any(excluded in tile for excluded in _KiDS_EXCLUDED_tiles)
     ]
 
-    for seqnr in range(2, 10):
+    for seqnr in range(1, 10):
         fname = f"random_catalogue_{seqnr:02d}.csv"
         tables = []
         for tile in tiles:
@@ -228,8 +237,9 @@ def build_KiDS_random_catalogues(
             with fits.open(os.path.join(_KiDS_BASIC_RANDOMS_DIR, tile)) as hdul:
                 t = table.Table(hdul[1].data)
 
+            t = t[:round(len(t) * fraction_per_tile)]
             mask = t["MASK"] & 28668 == 0
-            t = t[mask][:n_randdoms_per_tile]
+            t = t[mask]
             tables.append(t[["ALPHA_J2000", "DELTA_J2000"]])
 
         merged_table = table.vstack(tables, join_type="exact")
@@ -282,10 +292,10 @@ def build_GAMA_spectroscopic_catalogue(
 @prevent_on_server("alblas")
 def save_KiDS_gold_WL_csv_cat_with_selected_columns(
         save_dir=_KiDS_WL_DATA_DIR,
-        fname="KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.csv",
+        fname=os.path.basename(KiDS_gold_WL_CSV_path),
 ):
     """Save a CSV version of the KiDS gold WL catalogue with selected columns."""
-    with fits.open(_KiDS_gold_WL_fits_cat_path) as hdul:
+    with fits.open(_KiDS_gold_WL_FITS_path) as hdul:
         cat = table.Table(hdul[1].data)
 
     cat = cat[_KiDS_gold_WL_selected_columns]
