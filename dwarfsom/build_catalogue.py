@@ -211,7 +211,7 @@ def build_KiDS_dwarf_candidate_catalogue(
 
 @prevent_on_server("alblas")
 def build_KiDS_random_catalogues(
-        fraction_per_tile: int=0.007,
+        fraction_per_tile: int=0.06,
         save_dir: str=KiDS_RANDOMS_DIR,
         overwrite: bool=False,
 ):
@@ -239,6 +239,7 @@ def build_KiDS_random_catalogues(
 
             t = t[:round(len(t) * fraction_per_tile)]
             mask = t["MASK"] & 28668 == 0
+            mask *= t["SeqNr"] == seqnr
             t = t[mask]
             tables.append(t[["ALPHA_J2000", "DELTA_J2000"]])
 
