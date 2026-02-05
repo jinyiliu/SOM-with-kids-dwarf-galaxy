@@ -133,6 +133,7 @@ def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
 def build_KiDS_dwarf_candidate_catalogue(
         save_dir: str=_KiDS_DIR,
         fname: str="KiDS_dwarf_candidates.fits",
+        overwrite: bool=False,
 ):
     """Create a masked KiDS panchromatic catalogue with selected columns and
     derived columns that are relevant for dwarf galaxy candidates selection.
@@ -206,7 +207,7 @@ def build_KiDS_dwarf_candidate_catalogue(
     cat_processed.write(
         os.path.join(save_dir, fname),
         format="fits",
-        overwrite=True,
+        overwrite=overwrite,
     )
 
 @prevent_on_server("alblas")
@@ -254,6 +255,7 @@ def build_KiDS_random_catalogues(
 def build_GAMA_spectroscopic_catalogue(
         save_dir: str=_GAMA_DIR,
         fname: str="GAMA_processed_catalogue.fits",
+        overwrite: bool=False,
 ):
     """Build a GAMA spectroscopic catalogue combining gkvScienceCat and
     StellarMassesGKV, with selected columns and masked by SC > 3. The output
@@ -277,7 +279,7 @@ def build_GAMA_spectroscopic_catalogue(
     cat.write(
         os.path.join(save_dir, "GAMA_joined_catalogue.fits"),
         format="fits",
-        overwrite=True,
+        overwrite=overwrite,
     )
 
     mask = cat["SC"] > 3
@@ -286,14 +288,15 @@ def build_GAMA_spectroscopic_catalogue(
     cat_processed.write(
         os.path.join(save_dir, fname),
         format="fits",
-        overwrite=True,
+        overwrite=overwrite,
     )
 
 
 @prevent_on_server("alblas")
 def save_KiDS_gold_WL_csv_cat_with_selected_columns(
-        save_dir=_KiDS_WL_DATA_DIR,
-        fname=os.path.basename(KiDS_gold_WL_CSV_path),
+        save_dir: str=_KiDS_WL_DATA_DIR,
+        fname: str=os.path.basename(KiDS_gold_WL_CSV_path),
+        overwrite: bool=False,
 ):
     """Save a CSV version of the KiDS gold WL catalogue with selected columns."""
     with fits.open(_KiDS_gold_WL_FITS_path) as hdul:
@@ -308,7 +311,7 @@ def save_KiDS_gold_WL_csv_cat_with_selected_columns(
     cat["TOMO_BIN"][(cat["Z_B"] > 0.9) & (cat["Z_B"] <= 1.2)] = 5
 
     cat.write(
-        os.path.join(save_dir, fname), format="csv", overwrite=True)
+        os.path.join(save_dir, fname), format="csv", overwrite=overwrite)
 
 
 
