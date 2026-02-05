@@ -1,16 +1,16 @@
 import os.path
-from glob import glob
 import numpy as np
 import pandas as pd
-from astropy.table import Table
-from astropy.io import fits
 
+from glob import glob
+from astropy.io import fits
 from natsort import natsorted
 from dataclasses import dataclass
-from astropy.cosmology import FlatLambdaCDM
 from treecorr import NGCorrelation, Catalog
+from astropy.cosmology import FlatLambdaCDM
 from dsigma.physics import critical_surface_density
-from dwarfsom.utils import calculate_sky_area
+
+from dwarfsom.build_catalogue import KiDS_RANDOMS_DIR
 
 cosmo_default = FlatLambdaCDM(H0=100, Om0=0.3)
 
@@ -57,69 +57,20 @@ class Random:
     dec: np.ndarray
     w: np.ndarray | None = None
 
-    @staticmethod
-    def build_random_catalogues(
-            n_randoms: int,
-            n_catalogues: int,
-            savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/randoms/",
-    ):
-        RA_Dec_ranges = [
-            [(330., 360.), (-35.6, -27.)], # KiDS-S
-            [(0., 53.9), (-35.6, -27.)],  # KiDS-S
-            [(157., 237.3), (-4., 3.)], # KiDS-N
-            [(128.5, 141.7), (-2., 3.)], # KiDS-N-W2
-        ]
-        sky_areas = [
-            calculate_sky_area(RA_range, Dec_range)
-            for RA_range, Dec_range in RA_Dec_ranges
-        ]
-        n_randoms_field = [
-            int(np.round(n_randoms * sky_area / sum(sky_areas)))
-            for sky_area in sky_areas
-        ]
-
-        fname = "raw_random_catalogue_{:02d}.fits"
-        if not os.path.exists(savedir):
-            os.makedirs(savedir)
-
-        for i in range(n_catalogues):
-            coords = np.empty((2, n_randoms))
-            for field in range(len(RA_Dec_ranges)):
-                RA_range, Dec_range = RA_Dec_ranges[field]
-                ra_random = np.random.uniform(
-                    low=RA_range[0],
-                    high=RA_range[1],
-                    size=n_randoms_field[field],
-                )
-                dec_random = np.degrees(np.arcsin(
-                    np.random.uniform(
-                        low=np.sin(np.radians(Dec_range[0])),
-                        high=np.sin(np.radians(Dec_range[1])),
-                        size=n_randoms_field[field],
-                    )
-                ))
-                start_idx = sum(n_randoms_field[:field])
-                end_idx = start_idx + n_randoms_field[field]
-                coords[0, start_idx:end_idx] = ra_random
-                coords[1, start_idx:end_idx] = dec_random
-
-            df = pd.DataFrame({
-                "RAJ2000": coords[0],
-                "DECJ2000": coords[1],
-            })
-            table = Table.from_pandas(df)
-            savepath = os.path.join(savedir, fname.format(i + 1))
-            table.write(savepath, format="fits", overwrite=True)
-            print(f"Saved random catalogue {i + 1} to {savepath}.")
-
-
     @classmethod
     def from_random_catalogue(cls, savepath: str) -> "Random":
-        with fits.open(savepath) as hdul:
-            data = hdul[1].data
-            ra = data["RAJ2000"]
-            dec = data["DECJ2000"]
-        return cls(ra=ra, dec=dec)
+        if savepath.endswith(".fits"):
+            with fits.open(savepath) as hdul:
+                data = hdul[1].data
+                ra = data["ALPHA_J2000"]
+                dec = data["DELTA_J2000"]
+            return cls(ra=ra, dec=dec)
+
+        if savepath.endswith(".csv"):
+            df = pd.read_csv(savepath)
+            ra = df["ALPHA_J2000"].values
+            dec = df["DELTA_J2000"].values
+            return cls(ra=ra, dec=dec)
 
 
 @dataclass
@@ -289,7 +240,6 @@ class DSigma:
             df[f"dsigma_rand_tangential_randcat_{i + 1:02d}"] = self._dsigma_rand_array[0][i]
             df[f"dsigma_rand_cross_randcat_{i + 1:02d}"] = self._dsigma_rand_array[1][i]
 
-        df.to_csv(os.path.join(savedir, fname), index=False)
         df.to_csv(os.path.join(save_dir, fname), index=False)
 
 
@@ -315,6 +265,7 @@ class DSigma:
 
 def get_combined_dsigma(dsigma_list: list[DSigma]):
     """Combine multiple DSigma measurements by inverse-variance weighting."""
+    # TODO: replace the inputs with dsigma_tangential and cov only
     assert dsigma_list[0].lens == dsigma_list[1].lens == dsigma_list[2].lens
     mean_rp = dsigma_list[0].mean_rp
     dsigma_tangential = np.tile(mean_rp, (len(dsigma_list), 1))
@@ -339,7 +290,7 @@ def get_combined_dsigma(dsigma_list: list[DSigma]):
 def get_list_Random_catalogues(save_dir=KiDS_RANDOMS_DIR) -> list[Random]:
     """Load all random catalogues from the save_dir."""
     ret = []
-    savepaths = os.listdir(save_dir)
+    savepaths = natsorted(glob(os.path.join(save_dir, "random_catalogue_*")))
     for savepath in savepaths:
         print("Loading random catalogue from:", savepath)
         ret.append(Random.from_random_catalogue(savepath))
