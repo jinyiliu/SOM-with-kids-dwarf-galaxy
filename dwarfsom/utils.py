@@ -70,7 +70,7 @@ def get_KiDS_DR4_tile_set() -> set[tuple[float, float]]:
 def build_KiDS_random_catalogues(
         n_randoms: int,
         n_catalogues: int,
-        savedir: str,
+        save_dir: str,
 ):
     """Build random catalogues for KiDS DR4 given the RA and Dec ranges of the
     KiDS fields. The random catalogues are saved as FITS files in the specified
@@ -94,8 +94,8 @@ def build_KiDS_random_catalogues(
     ]
 
     fname = "random_catalogue_{:02d}.fits"
-    if not os.path.exists(savedir):
-        os.makedirs(savedir)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     for i in range(n_catalogues):
         coords = np.empty((2, n_randoms))
@@ -123,6 +123,6 @@ def build_KiDS_random_catalogues(
             "DECJ2000": coords[1],
         })
         t = table.Table.from_pandas(df)
-        savepath = os.path.join(savedir, fname.format(i + 1))
+        savepath = os.path.join(save_dir, fname.format(i + 1))
         t.write(savepath, format="fits", overwrite=True)
         print(f"Saved random catalogue {i + 1} to {savepath}.")

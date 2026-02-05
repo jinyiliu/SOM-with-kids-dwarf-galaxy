@@ -140,9 +140,9 @@ class DSigmaData:
     def from_file(
             cls,
             fname: str,
-            savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
+            save_dir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
     ) -> "DSigmaData":
-        df = pd.read_csv(os.path.join(savedir, fname))
+        df = pd.read_csv(os.path.join(save_dir, fname))
         boost_array = df.filter(like="boost_randcat").values.T
         dsigma_rand_array = np.vstack((
             [df.filter(like="dsigma_rand_tangential_randcat").values.T],
@@ -271,7 +271,7 @@ class DSigma:
     def save(
             self,
             fname: str,
-            savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
+            save_dir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
     ):
         assert fname.endswith(".csv")
         df = pd.DataFrame({
@@ -290,6 +290,7 @@ class DSigma:
             df[f"dsigma_rand_cross_randcat_{i + 1:02d}"] = self._dsigma_rand_array[1][i]
 
         df.to_csv(os.path.join(savedir, fname), index=False)
+        df.to_csv(os.path.join(save_dir, fname), index=False)
 
 
     def degree2hMpc(self, degree: np.ndarray | float):
@@ -335,12 +336,10 @@ def get_combined_dsigma(dsigma_list: list[DSigma]):
     return mean_rp, dsigma_tangential, var
 
 
-def get_list_Random_catalogues(
-        savedir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/randoms/",
-) -> list[Random]:
-    """Load all random catalogues from the savedir."""
+def get_list_Random_catalogues(save_dir=KiDS_RANDOMS_DIR) -> list[Random]:
+    """Load all random catalogues from the save_dir."""
     ret = []
-    savepaths = natsorted(glob(os.path.join(savedir, "*.fits")))
+    savepaths = os.listdir(save_dir)
     for savepath in savepaths:
         print("Loading random catalogue from:", savepath)
         ret.append(Random.from_random_catalogue(savepath))
