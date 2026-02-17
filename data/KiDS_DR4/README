@@ -20,3 +20,15 @@ cd BASIC_RANDOMS
 wget --user=KiDS_Collaboration --ask-password -r -np -nc -R "index.html*" --no-directories "http://cuillin.roe.ac.uk/~cech/KiDS/KiDS-1000/BASIC_RANDOMS/"
 
 On server alblas.strw.leidenuniv.nl, the photometry data and the random catalogues are stored at: /data2/jliu/som_data/KiDS_DR4/fitscats/ and /data2/jliu/som_data/KiDS_DR4/BASIC_RANDOMS/, respectively.
+
+File and directory structure:
+KiDS_DR4/
+├── ugriZYJHKs_tile_cats/           # photometry data for all 1006 tiles
+├── BASIC_RANDOMS/                  # basic random catalogues for all 1011 tiles
+├── randoms/                        # random catalogues that can be used for the GGL random corrections
+├── SOM_N_of_Z/                     # SOM-calibrated N(z)
+├── KiDS_DR4.1_gold_WL_cat/         # the KiDS DR4.1 gold weak lensing catalogue
+├── KiDS_DMAG_R_zeropoint_corrections.csv # the DMAG_R zeropoint corrections
+├── kids_dr4.0_download_list.txt    # the download list for the photometry data
+├── kids_dr4.1_download_list.txt    # the download list for the photometry data
+└── README                          # this file
