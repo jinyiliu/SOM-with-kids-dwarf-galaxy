@@ -1,11 +1,14 @@
 import os
 import itertools
+import warnings
 import pandas as pd
 import numpy as np
 
 from astropy.io import fits
 from astropy import table
 from functools import wraps
+
+warnings.filterwarnings(action="ignore", category=RuntimeWarning)
 
 def prevent_on_server(server_name: str="alblas"):
     def decorator(func):
@@ -24,13 +27,6 @@ def prevent_on_server(server_name: str="alblas"):
 def Rhf2FWHM(Rhf):
     """Convert half-light radius to FWHM for a Gaussian profile."""
     return Rhf * 1.75
-
-def get_mask_for_candidate_dwarfs(
-    magr, gminusr, gminusr_err, mueff, mueff_err,
-):
-    mask = gminusr - gminusr_err < 0.00085 * (magr - 13.) ** 3 + 0.83
-    mask *= mueff + mueff_err > 16.7 + 0.7 * (magr - 13.)
-    return mask
 
 
 _NODE_DIR = "/net/alblas"
@@ -130,15 +126,13 @@ def get_DMAG_R_zeropoint_correction() -> pd.DataFrame:
 
 
 @prevent_on_server("alblas")
-def build_KiDS_dwarf_candidate_catalogue(
+def build_KiDS_preselected_candidates(
         save_dir: str=_KiDS_DIR,
-        fname: str="KiDS_dwarf_candidates.fits",
+        fname: str="KiDS_preselected_candidates.fits",
         overwrite: bool=False,
 ):
     """Create a masked KiDS panchromatic catalogue with selected columns and
-    derived columns that are relevant for dwarf galaxy candidates selection.
-    The output catalogue is saved in FITS format for subsequent processing in
-    TOPCAT sofware.
+    derived columns that are relevant for dwarf galaxy candidates preselection.
     """
     if not os.path.exists(save_dir):
         raise ValueError(f"Directory {save_dir} does not exist.")
@@ -170,10 +164,18 @@ def build_KiDS_dwarf_candidate_catalogue(
     mask *= cat["CLASS_STAR"] < 0.5
     mask *= cat["SG2DPHOT"] == 0
     mask *= cat["SG_FLAG"] == 1
-    mask *= cat["MAG_AUTO"] + cat["DMAG_R"] < 19.65
-
     for band in KiDS_photometric_bands:
         mask *= cat[f"FLAG_GAAP_{band}"] == 0
+
+    mask *= cat["MAG_AUTO"] + cat["DMAG_R"] < 20.5
+    mask *= cat["Z_B"] < 1.0
+    mask *= cat_processed["FLUX_GAAP_SNR_r"] > 5
+
+    mask *= cat["FWHM_IMAGE"] > 0.
+    mask *= cat["FLUX_RADIUS"] > 0.
+    for band in KiDS_photometric_bands:
+        mask *= cat[f"FLUX_GAAP_{band}"] > 0
+        mask *= cat[f"FLUXERR_GAAP_{band}"] > 0
 
     for band1, band2 in itertools.combinations(KiDS_photometric_bands, r=2):
         colour = cat[f"MAG_GAAP_{band1}"] - cat[f"MAG_GAAP_{band2}"]
@@ -196,19 +198,13 @@ def build_KiDS_dwarf_candidate_catalogue(
         )
     )
 
-    mask *= get_mask_for_candidate_dwarfs(cat_processed["MAG_CORR"],
-                                          cat_processed["COLOUR_GAAP_g_r"],
-                                          cat_processed["COLOURERR_GAAP_g_r"],
-                                          cat_processed["MU_EFF_FWHM_IMAGE"],
-                                          cat_processed["MAGERR_AUTO"])
-
-    cat_processed = cat_processed[mask]
-
-    cat_processed.write(
+    cat_preselected = cat_processed[mask]
+    cat_preselected.write(
         os.path.join(save_dir, fname),
         format="fits",
         overwrite=overwrite,
     )
+
 
 @prevent_on_server("alblas")
 def build_KiDS_random_catalogues(
@@ -254,7 +250,7 @@ def build_KiDS_random_catalogues(
 
 def build_GAMA_spectroscopic_catalogue(
         save_dir: str=_GAMA_DIR,
-        fname: str="GAMA_processed_catalogue.fits",
+        fname: str="GAMA_joined_catalogue_SCge4.fits",
         overwrite: bool=False,
 ):
     """Build a GAMA spectroscopic catalogue combining gkvScienceCat and
@@ -283,6 +279,8 @@ def build_GAMA_spectroscopic_catalogue(
     )
 
     mask = cat["SC"] > 3
+    mask *= cat["uberclass"] == 1
+    mask *= cat["NQ"] > 2
 
     cat_processed = cat[mask]
     cat_processed.write(
@@ -316,7 +314,7 @@ def save_KiDS_gold_WL_csv_cat_with_selected_columns(
 
 
 if __name__ == "__main__":
-    build_KiDS_random_catalogues(overwrite=True)
-    build_KiDS_dwarf_candidate_catalogue()
+    build_KiDS_random_catalogues()
+    build_KiDS_preselected_candidates()
     build_GAMA_spectroscopic_catalogue()
     save_KiDS_gold_WL_csv_cat_with_selected_columns()
