@@ -2,8 +2,12 @@ import os
 import numpy as np
 import pandas as pd
 
+import astropy.units as u
 from astropy import table
 from astropy.io import fits
+from astroquery.hips2fits import hips2fits
+from astropy.coordinates import Longitude, Latitude, Angle
+
 
 def fits2csv(
         fits_savepath: str,
@@ -126,3 +130,30 @@ def build_KiDS_random_catalogues(
         savepath = os.path.join(save_dir, fname.format(i + 1))
         t.write(savepath, format="fits", overwrite=True)
         print(f"Saved random catalogue {i + 1} to {savepath}.")
+
+
+def load_src_image(
+        ra: float,
+        dec: float,
+        fov: float=0.015,
+        width=200,
+        height=200,
+        projection="TAN",
+        **query_kwargs,
+):
+    """Load a source image from the HiPS server given the RA and Dec of the source."""
+    hips = "CDS/P/KiDS/DR5/color-gri"
+
+    src_image = hips2fits.query(
+        hips=hips,
+        width=width,
+        height=height,
+        ra=Longitude(ra * u.deg),
+        dec=Latitude(dec * u.deg),
+        fov=Angle(fov * u.deg),
+        projection=projection,
+        get_query_payload=False,
+        format="jpg",
+        **query_kwargs,
+    )
+    return src_image
