@@ -19,7 +19,7 @@ class Lens:
     ra: np.ndarray
     dec: np.ndarray
     dndz: tuple[np.ndarray, np.ndarray]
-    dndmstar: tuple[np.ndarray, np.ndarray]
+    dndlogmstar: tuple[np.ndarray, np.ndarray]
     w: np.ndarray | None = None
 
     def __eq__(self, other):
@@ -30,8 +30,8 @@ class Lens:
             np.array_equal(self.dec, other.dec) and
             np.array_equal(self.dndz[0], other.dndz[0]) and
             np.array_equal(self.dndz[1], other.dndz[1]) and
-            np.array_equal(self.dndmstar[0], other.dndmstar[0]) and
-            np.array_equal(self.dndmstar[1], other.dndmstar[1]) and
+            np.array_equal(self.dndlogmstar[0], other.dndlogmstar[0]) and
+            np.array_equal(self.dndlogmstar[1], other.dndlogmstar[1]) and
             (
                 (self.w is None and other.w is None) or
                 np.array_equal(self.w, other.w)
