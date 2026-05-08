@@ -88,7 +88,7 @@ class DSigmaData:
 
 
     @classmethod
-    def from_file(
+    def load_csv(
             cls,
             fname: str,
             save_dir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
@@ -123,8 +123,15 @@ class DSigma:
             n_rp_bins: int=8,
             min_rp: float=0.01,
             max_rp: float=10.0,
+            patch_centers: str | None=None,
+            npatch: int | None=None,
+            var_method: str="shot",
     ):
         """Excess Surface Density Estimator using TreeCorr."""
+        if var_method != "shot":
+            if patch_centers is None and npatch is None:
+                raise ValueError
+
         self.lens = lens
         self.source = source
         self.randoms = randoms
@@ -132,6 +139,8 @@ class DSigma:
         self.n_rp_bins = n_rp_bins
         self.min_rp = min_rp
         self.max_rp = max_rp
+        self.patch_centers = patch_centers
+        self.npatch = npatch
 
         self._effective_sigma_crit = self.effective_critical_surface_density()
 
@@ -139,18 +148,24 @@ class DSigma:
             ra=lens.ra, ra_units="degrees",
             dec=lens.dec, dec_units="degrees",
             w=self.lens.w,
+            patch_centers=patch_centers,
+            npatch=npatch,
         )
         self.source_Catalog = Catalog(
             ra=self.source.ra, ra_units="degrees",
             dec=self.source.dec, dec_units="degrees",
             g1=self.source.e1, g2=self.source.e2,
             w=self.source.w,
+            patch_centers=patch_centers,
+            npatch=npatch,
         )
         self.config = {
             "min_sep": self.hMpc2degree(self.min_rp),
             "max_sep": self.hMpc2degree(self.max_rp),
             "nbins": self.n_rp_bins,
             "sep_units": "degree",
+            "var_method": var_method,
+            "cross_patch_weight": "match",
         }
 
         ng = NGCorrelation(self.config)
@@ -190,6 +205,8 @@ class DSigma:
                 ra=self.randoms[i].ra, ra_units="degrees",
                 dec=self.randoms[i].dec, dec_units="degrees",
                 w=self.randoms[i].w,
+                patch_centers=self.patch_centers,
+                npatch=self.npatch,
             )
             ng_rand.process(random_Catalog, self.source_Catalog)
             self._boost_array[i] = (
