@@ -4,7 +4,7 @@ https://github.com/andrejdvornik/onepower_app
 """
 import numpy as np
 import scipy.interpolate
-import _fftlog
+from ._fftlog import *
 
 # Adapted from CosmoSIS Standard Library module, including the _fftlog.py
 
@@ -119,7 +119,7 @@ class Transformer:
         self.q, self.mu = _TRANSFORM_PARAMETERS[transform_type]
 
         # Prepare the Hankel transform.
-        self.kr, self.xsave = _fftlog.fhti(n, self.mu, dlogr, q=self.q, kropt=kropt)
+        self.kr, self.xsave = fhti(n, self.mu, dlogr, q=self.q, kropt=kropt)
 
         # We always to the inverse transform, from Fourier->Real.
         self.direction = -1
@@ -153,13 +153,13 @@ class Transformer:
 
         if self.q == 0:
             xi = (
-                _fftlog.fht(self.k * pk, self.xsave, tdir=self.direction)
+                fht(self.k * pk, self.xsave, tdir=self.direction)
                 / (2 * np.pi)
                 / self.sep
             )
         else:
             xi = (
-                _fftlog.fhtq(self.k * pk, self.xsave, tdir=self.direction)
+                fhtq(self.k * pk, self.xsave, tdir=self.direction)
                 / (2 * np.pi)
                 / self.sep
             )
