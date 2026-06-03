@@ -8,14 +8,13 @@ from ._fftlog import *
 
 # Adapted from CosmoSIS Standard Library module, including the _fftlog.py
 
-# These are the ones the user can use
-TRANSFORM_WP = 'wp'
-TRANSFORM_DS = 'ds'
-TRANSFORM_W = 'wtheta'
-TRANSFORM_XI = 'xi'
-TRANSFORM_XIP = 'xip'
-TRANSFORM_XIM = 'xim'
-TRANSFORM_GAMMA = 'gamma'
+TRANSFORM_WP = "wp"
+TRANSFORM_DS = "ds"
+TRANSFORM_W = "wtheta"
+TRANSFORM_XI = "xi"
+TRANSFORM_XIP = "xip"
+TRANSFORM_XIM = "xim"
+TRANSFORM_GAMMA = "gamma"
 
 DEFAULT_N_TRANSFORM = 8192
 DEFAULT_K_MIN = 0.0001
@@ -46,13 +45,11 @@ _TRANSFORM_PARAMETERS = {
 
 class LogInterp:
     """
-    This is a helper object that interpolates into f(x) where x>0.
-    If all f>0 then it interpolates log(f) vs log(x).  If they are all f<0 then it
-    interpolate log(-f) vs log(x).  If f is mixed or has some f=0 then it just interpolates
-    f vs log(x).
-
+    This is a helper object that interpolates into f(x) where x>0. If all f>0
+    then it interpolates log(f) vs log(x). If they are all f<0 then it
+    interpolate log(-f) vs log(x). If f is mixed or has some f=0 then it just
+    interpolates f vs log(x).
     """
-
     def __init__(self, angle, spec, kind):
         if np.all(spec > 0):
             self.interp_func = scipy.interpolate.interp1d(
@@ -60,46 +57,44 @@ class LogInterp:
                 np.log(spec),
                 kind,
                 bounds_error=False,
-                fill_value='extrapolate',
+                fill_value="extrapolate",
             )
-            self.interp_type = 'loglog'
+            self.interp_type = "loglog"
         elif np.all(spec < 0):
             self.interp_func = scipy.interpolate.interp1d(
                 np.log(angle),
                 np.log(-spec),
                 kind,
                 bounds_error=False,
-                fill_value='extrapolate',
+                fill_value="extrapolate",
             )
-            self.interp_type = 'minus_loglog'
+            self.interp_type = "minus_loglog"
         else:
             self.interp_func = scipy.interpolate.interp1d(
-                np.log(angle), spec, kind, bounds_error=False, fill_value='extrapolate'
+                np.log(angle), spec, kind, bounds_error=False, fill_value="extrapolate"
             )
-            self.interp_type = 'log_ang'
+            self.interp_type = "log_ang"
 
     def __call__(self, angle):
-        if self.interp_type == 'loglog':
+        if self.interp_type == "loglog":
             spec = np.exp(self.interp_func(np.log(angle)))
-        elif self.interp_type == 'minus_loglog':
+        elif self.interp_type == "minus_loglog":
             spec = -np.exp(self.interp_func(np.log(angle)))
         else:
-            assert self.interp_type == 'log_ang'
+            assert self.interp_type == "log_ang"
             spec = self.interp_func(np.log(angle))
         return spec
 
 
 class Transformer:
     """
-    Class to build Hankel Transformers that convert from 3D power spectra to correlation functions.
-    Several transform types are allowed, depending whether you are using cosmic shear, clustering, or
-    galaxy-galaxy lensing.
+    Class to build Hankel Transformers that convert from 3D power spectra to
+    correlation functions. Several transform types are allowed, depending on
+    whether you are using cosmic shear, clustering, or galaxy-galaxy lensing.
     """
-
     def __init__(
         self, transform_type, n, k_min, k_max, sep_min, sep_max, lower=1.0, upper=-2.0
     ):
-
         # We use a fixed ell grid in log space and will interpolate/extrapolate our inputs onto this
         # grid. We typically use a maximum ell very much higher than the range we have physical values
         # for.  The exact values there do not matter, but they must be not have a sharp cut-off to avoid
@@ -147,7 +142,6 @@ class Transformer:
     def __call__(self, k_in, pk_in, chi_l=None):
         """Convert the input k and P(k) points to the points this transform requires, and then
         transform."""
-
         # Sample onto self.ell
         pk = self._interpolate_and_extrapolate_pk(k_in, pk_in)
 
@@ -167,10 +161,11 @@ class Transformer:
         return self.sep[self.range], xi[self.range]
 
     def _interpolate_and_extrapolate_pk(self, k, pk):
-        """Extrapolate and interpolate the input ell and cl to the default points for this transform"""
+        """Extrapolate and interpolate the input ell and cl to the default
+        points for this transform"""
         k_min = k[0]
         k_max = k[-1]
-        interpolator = LogInterp(k, pk, 'linear')
+        interpolator = LogInterp(k, pk, "linear")
         pk_out = interpolator(self.k)
         # bad_low = np.isnan(pk_out) & (self.k < k_min)
         # bad_high = np.isnan(pk_out) & (self.k > k_max)
@@ -194,7 +189,6 @@ class PkTransformer(Transformer):
         z_s=None,
         components=False,
     ):
-
         self.corr_type = corr_type
         self.model = model
 
@@ -214,25 +208,24 @@ class PkTransformer(Transformer):
         self.z_s = z_s
         self.components = components
 
-        # --- Cosmology ---
+        # Cosmology
         cosmo = self.model.cosmo_model
         self.h = cosmo.h
         self.H0 = cosmo.H0.value  # km/s/Mpc
         self.Omega_m = cosmo.Om0
 
-        # --- Comoving distance ---
-        chi_Mpc = cosmo.comoving_distance(self.z_l + 1e-6).to('Mpc').value
+        # Comoving distance
+        chi_Mpc = cosmo.comoving_distance(self.z_l + 1e-6).to("Mpc").value
         self.chi_l_Mpc = chi_Mpc  # Mpc (for lensing kernel)
         self.chi_l = chi_Mpc * self.h  # Mpc/h (for Hankel transform)
 
-        # --- Separation limits ---
-        if corr_type in ['ds', 'wp']:
+        # Separation limits
+        if corr_type in ["ds", "wp"]:
             sep_min = sep_min_in
             sep_max = sep_max_in
         else:
-            # convert arcmin → Mpc/h
-            conv = (
-                cosmo.kpc_comoving_per_arcmin(self.z_l + 1e-6).to('Mpc / arcmin').value
+            conv = ( # convert arcmin → Mpc/h
+                cosmo.kpc_comoving_per_arcmin(self.z_l + 1e-6).to("Mpc / arcmin").value
             )
 
             sep_min = sep_min_in * conv * self.h
@@ -242,34 +235,32 @@ class PkTransformer(Transformer):
 
         super().__init__(corr_type, self.n, k_min, k_max, sep_min, sep_max)
 
-    # --------------------------------------------------------
 
     def __call__(self):
-
-        if self.corr_type == 'ds':
+        if self.corr_type == "ds":
             P = self.model.power_spectrum_gm.pk_tot[0, 0, :]
             if self.components:
                 P_1h = self.model.power_spectrum_gm.pk_1h[0, 0, :]
                 P_2h = self.model.power_spectrum_gm.pk_2h[0, 0, :]
 
-        elif self.corr_type == 'wp' or self.corr_type == 'wtheta':
+        elif self.corr_type == "wp" or self.corr_type == "wtheta":
             P = self.model.power_spectrum_gg.pk_tot[0, 0, :]
             if self.components:
                 P_1h = self.model.power_spectrum_gg.pk_1h[0, 0, :]
                 P_2h = self.model.power_spectrum_gg.pk_2h[0, 0, :]
 
-        elif self.corr_type in ['gamma', 'xip', 'xim']:
+        elif self.corr_type in ["gamma", "xip", "xim"]:
             c = 299792.458
             a_l = 1.0 / (1.0 + self.z_l)
 
-            # --- Kernel W in 1/Mpc ---
+            # Kernel W in 1/Mpc
             if self.z_s is None:
                 W = (3 * self.H0**2 * self.Omega_m / (2 * c**2)) * (
                     self.chi_l_Mpc / a_l
                 )
             else:
                 chi_s_Mpc = (
-                    self.model.cosmo_model.comoving_distance(self.z_s).to('Mpc').value
+                    self.model.cosmo_model.comoving_distance(self.z_s).to("Mpc").value
                 )
 
                 W = (
@@ -278,7 +269,7 @@ class PkTransformer(Transformer):
                     * ((chi_s_Mpc - self.chi_l_Mpc) / chi_s_Mpc)
                 )
 
-            if self.corr_type == 'gamma':
+            if self.corr_type == "gamma":
                 P = W * (1.0 / self.h) * self.model.power_spectrum_gm.pk_tot[0, 0, :]
                 if self.components:
                     P_1h = (
@@ -302,14 +293,14 @@ class PkTransformer(Transformer):
                         * self.model.power_spectrum_mm.pk_2h[0, 0, :]
                     )
         else:
-            raise ValueError('Unknown transform type')
+            raise ValueError("Unknown transform type")
 
         sep_out, xi = super().__call__(self.k_vec, P)
         if self.components:
             _, xi_1h = super().__call__(self.k_vec, P_1h)
             _, xi_2h = super().__call__(self.k_vec, P_2h)
 
-        if self.corr_type == 'ds':
+        if self.corr_type == "ds":
             xi *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
             xi /= 1e12  # M_sun / pc^2
             if self.components:
@@ -318,10 +309,10 @@ class PkTransformer(Transformer):
                 xi_2h *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
                 xi_2h /= 1e12  # M_sun / pc^2
 
-        if self.corr_type in ['wtheta', 'gamma', 'xip', 'xim']:
+        if self.corr_type in ["wtheta", "gamma", "xip", "xim"]:
             conv = (
                 self.model.cosmo_model.kpc_comoving_per_arcmin(self.z_l + 1e-6)
-                .to('Mpc / arcmin')
+                .to("Mpc / arcmin")
                 .value
             )
 
