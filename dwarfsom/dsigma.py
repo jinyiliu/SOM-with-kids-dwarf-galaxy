@@ -7,12 +7,13 @@ from astropy.io import fits
 from natsort import natsorted
 from dataclasses import dataclass
 from treecorr import NGCorrelation, Catalog
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM, Planck18
 from dsigma.physics import critical_surface_density
+from deprecation import deprecated
 
 from dwarfsom.build_catalogue import KiDS_RANDOMS_DIR
 
-cosmo_default = FlatLambdaCDM(H0=100, Om0=0.3)
+# cosmo_default = FlatLambdaCDM(H0=100, Om0=0.3)
 
 @dataclass
 class Lens:
@@ -76,6 +77,7 @@ class Random:
 @dataclass
 class DSigmaData:
     mean_rp: np.ndarray
+    mean_rp_arcmin: np.ndarray
     npairs: np.ndarray
     dsigma_tangential: np.ndarray
     dsigma_cross: np.ndarray
@@ -101,6 +103,7 @@ class DSigmaData:
         ))
         return cls(
             mean_rp=df["mean_rp_hMpc"].values,
+            mean_rp_arcmin=df["mean_rp_arcmin"].values,
             npairs=df["npairs"].values,
             dsigma_tangential=df["dsigma_tangential"].values,
             dsigma_cross=df["dsigma_cross"].values,
@@ -122,6 +125,8 @@ class DSigma:
             cosmo=cosmo_default,
             n_rp_bins: int=8,
             min_rp: float=0.01,
+            cosmo=Planck18,
+            n_rp_bins: int=15,
             max_rp: float=10.0,
             patch_centers: str | None=None,
             npatch: int | None=None,
@@ -175,6 +180,7 @@ class DSigma:
         self.dsigma_cross = ng.xi_im * self._effective_sigma_crit
         self.cov = ng.cov * self._effective_sigma_crit**2
         self.mean_rp = self.degree2hMpc(ng.meanr)
+        self.mean_rp_arcmin = ng.meanr * 180 # degree to arcmin
 
         if self.randoms is not None:
             self._weighted_npairs = ng.weight
@@ -244,6 +250,7 @@ class DSigma:
         assert fname.endswith(".csv")
         df = pd.DataFrame({
             "mean_rp_hMpc": self.mean_rp,
+            "mean_rp_arcmin": self.mean_rp_arcmin,
             "npairs": self._weighted_npairs,
             "dsigma_tangential": self.dsigma_tangential,
             "dsigma_cross": self.dsigma_cross,
@@ -279,7 +286,7 @@ class DSigma:
         degree = np.degrees(radian)
         return degree
 
-
+@deprecated
 def get_combined_dsigma(dsigma_list: list[DSigma]):
     """Combine multiple DSigma measurements by inverse-variance weighting."""
     # TODO: replace the inputs with dsigma_tangential and cov only
