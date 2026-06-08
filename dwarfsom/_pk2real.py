@@ -1,5 +1,5 @@
 """
-This script is copied from:
+This script is based on pk_to_real.py in the following repo:
 https://github.com/andrejdvornik/onepower_app
 """
 import numpy as np
@@ -238,10 +238,13 @@ class PkTransformer(Transformer):
 
     def __call__(self):
         if self.corr_type == "ds":
-            P = self.model.power_spectrum_gm.pk_tot[0, 0, :]
-            if self.components:
-                P_1h = self.model.power_spectrum_gm.pk_1h[0, 0, :]
-                P_2h = self.model.power_spectrum_gm.pk_2h[0, 0, :]
+            P_list = []
+            P_1h_list = []
+            P_2h_list = []
+            for i in range(self.model.power_spectrum_gm.pk_tot.shape[0]):
+                P_list.append(self.model.power_spectrum_gm.pk_tot[i, i, :])
+                P_1h_list.append(self.model.power_spectrum_gm.pk_1h[i, i, :])
+                P_2h_list.append(self.model.power_spectrum_gm.pk_2h[i, i, :])
 
         elif self.corr_type == "wp" or self.corr_type == "wtheta":
             P = self.model.power_spectrum_gg.pk_tot[0, 0, :]
@@ -295,19 +298,27 @@ class PkTransformer(Transformer):
         else:
             raise ValueError("Unknown transform type")
 
-        sep_out, xi = super().__call__(self.k_vec, P)
-        if self.components:
-            _, xi_1h = super().__call__(self.k_vec, P_1h)
-            _, xi_2h = super().__call__(self.k_vec, P_2h)
-
         if self.corr_type == "ds":
-            xi *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
-            xi /= 1e12  # M_sun / pc^2
-            if self.components:
-                xi_1h *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
-                xi_1h /= 1e12  # M_sun / pc^2
-                xi_2h *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
-                xi_2h /= 1e12  # M_sun / pc^2
+            breakpoint()
+            xi_list = []
+            xi_1h_list = []
+            xi_2h_list = []
+            for P, P_1h, P_2h in zip(P_list, P_1h_list, P_2h_list):
+                sep_out, xi = super().__call__(self.k_vec, P)
+                xi *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
+                xi /= 1e12  # M_sun / pc^2
+                xi_list.append(xi)
+                if self.components:
+                    _, xi_1h = super().__call__(self.k_vec, P_1h)
+                    _, xi_2h = super().__call__(self.k_vec, P_2h)
+                    xi_1h *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
+                    xi_1h /= 1e12  # M_sun / pc^2
+                    xi_2h *= self.model.mean_density0[0]  # M_sun / (Mpc/h)^3
+                    xi_2h /= 1e12  # M_sun / pc^2
+
+                    xi_1h_list.append(xi_1h)
+                    xi_2h_list.append(xi_2h)
+
 
         if self.corr_type in ["wtheta", "gamma", "xip", "xim"]:
             conv = (
@@ -319,5 +330,10 @@ class PkTransformer(Transformer):
             sep_out = sep_out / (conv * self.h)
 
         if self.components:
-            return sep_out, xi, xi_1h, xi_2h
-        return sep_out, xi
+            return (
+                sep_out,
+                np.array(xi_list),
+                np.array(xi_1h_list),
+                np.array(xi_2h_list),
+            )
+        return sep_out, np.array(xi_list)
