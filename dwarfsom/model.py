@@ -134,7 +134,7 @@ class DSigmaModel:
             **cosmo_Planck18,
         )
 
-    def get_predict_func(
+    def get_model_func(
             self,
             param_names: list[str],
             evaluate_at_mean_rp: bool=True,
@@ -144,7 +144,7 @@ class DSigmaModel:
                 raise ValueError(
                     "dsigma_mean_rp must have been set."
                 )
-            def predict_func(param_values: np.ndarray) -> np.ndarray | list[np.ndarray]:
+            def model_func(param_values: np.ndarray) -> np.ndarray | list[np.ndarray]:
                 self._update_spectra(param_names, param_values)
                 _sep, _dsigma = Pgm2DSigma(
                     model=self.spectra,
@@ -160,7 +160,7 @@ class DSigmaModel:
 
                 return np.array(dsigma).flatten()
         else: # Generate dsigma curve for visualisation
-            def predict_func(param_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+            def model_func(param_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
                 self._update_spectra(param_names, param_values)
                 sep, dsigma = Pgm2DSigma(
                     model=self.spectra,
@@ -169,7 +169,7 @@ class DSigmaModel:
                     components=False,
                 )
                 return sep, dsigma
-        return predict_func
+        return model_func
 
     def _update_spectra(
             self, param_names: list[str], param_values: np.ndarray,

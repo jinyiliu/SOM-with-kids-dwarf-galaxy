@@ -299,7 +299,6 @@ class PkTransformer(Transformer):
             raise ValueError("Unknown transform type")
 
         if self.corr_type == "ds":
-            breakpoint()
             xi_list = []
             xi_1h_list = []
             xi_2h_list = []
