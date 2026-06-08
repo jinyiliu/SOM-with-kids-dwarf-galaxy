@@ -1,5 +1,6 @@
 import numpy as np
 import pyccl as ccl
+from scipy.interpolate import interp1d
 from onepower import Spectra
 
 from numpy.typing import ArrayLike
@@ -21,7 +22,7 @@ class DSigmaModel:
     def __init__(
             self,
             zl: np.ndarray | float,
-            dsigma_mean_rp: np.ndarray,
+            dsigma_mean_rp: np.ndarray | None=None,
             min_logmstar: np.ndarray | None=None,
             max_logmstar: np.ndarray | None=None,
     ):
@@ -32,6 +33,15 @@ class DSigmaModel:
             raise ValueError(
                 "zl, min_logmstar, and max_logmstar must have the same length."
             )
+
+
+        if dsigma_mean_rp is not None:
+            if dsigma_mean_rp.ndim == 1:
+                dsigma_mean_rp = np.tile(
+                    dsigma_mean_rp[None, :],
+                    reps=(len(zl), 1),
+                )
+        self.dsigma_mean_rp = dsigma_mean_rp
 
         self.zl = zl
 
@@ -120,27 +130,44 @@ class DSigmaModel:
             # Kwargs for the parent class of Spectra: HaloModelIngredients
             **self.hmf,
             # Kwargs for parent class of HaloModelIngredients: CosmologyBase
-            z_vec=zl,
+            z_vec=self.zl,
             **cosmo_Planck18,
         )
 
     def get_predict_func(
             self,
             param_names: list[str],
-            flatten: bool=True,
+            evaluate_at_mean_rp: bool=True,
     ) -> Callable:
-        def predict_func(param_values: np.ndarray):
-            self._update_spectra(param_names, param_values)
-            # TODO: evaluate the ESD at self.dsigma_mean_rp
-            sep, dsigma = Pgm2DSigma(
-                model=self.spectra,
-                rpmin=1.e-2,
-                rpmax=10,
-                components=False,
-            )
-            if flatten:
-                return sep, dsigma.flatten()
-            else:
+        if evaluate_at_mean_rp: # Generate data vector for MCMC
+            if self.dsigma_mean_rp is None:
+                raise ValueError(
+                    "dsigma_mean_rp must have been set."
+                )
+            def predict_func(param_values: np.ndarray) -> np.ndarray | list[np.ndarray]:
+                self._update_spectra(param_names, param_values)
+                _sep, _dsigma = Pgm2DSigma(
+                    model=self.spectra,
+                    rpmin=0.01,
+                    rpmax=40,
+                    components=False,
+                )
+                dsigma = []
+                for mean_rp, _ds in zip(self.dsigma_mean_rp, _dsigma):
+                    dsigma.append(
+                        np.interp(mean_rp, _sep, _ds)
+                    )
+
+                return np.array(dsigma).flatten()
+        else: # Generate dsigma curve for visualisation
+            def predict_func(param_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+                self._update_spectra(param_names, param_values)
+                sep, dsigma = Pgm2DSigma(
+                    model=self.spectra,
+                    rpmin=0.01,
+                    rpmax=40,
+                    components=False,
+                )
                 return sep, dsigma
         return predict_func
 
