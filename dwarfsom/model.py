@@ -25,7 +25,19 @@ class DSigmaModel:
             dsigma_mean_rp: np.ndarray | None=None,
             min_logmstar: np.ndarray | None=None,
             max_logmstar: np.ndarray | None=None,
+            dndlogmstar: np.ndarray | None=None,
     ):
+        """
+
+        Args:
+            zl: Redshifts of the lenses.
+            dsigma_mean_rp:
+            min_logmstar:
+            max_logmstar:
+            dndlogmstar: Stellar mass distribution in the stellar mass range
+                (min_logmstar, max_logmstar). It should be normalised such that
+                np.sum(dndlogmstar[0]) == len(dndlogmstar[0]).
+        """
         if isinstance(zl, float):
             zl = np.array([zl])
 
@@ -33,7 +45,14 @@ class DSigmaModel:
             raise ValueError(
                 "zl, min_logmstar, and max_logmstar must have the same length."
             )
-
+        self.min_logmstar = min_logmstar
+        self.max_logmstar = max_logmstar
+        if dndlogmstar is not None:
+            if not len(dndlogmstar) == len(min_logmstar) == len(max_logmstar):
+                raise ValueError(
+                    "dndlogmstar must have the same lenght as min_logmstar and max_logmstar."
+                )
+        self.dndlogmstar = dndlogmstar
 
         if dsigma_mean_rp is not None:
             if dsigma_mean_rp.ndim == 1:
@@ -91,13 +110,13 @@ class DSigmaModel:
         )
         self.hod_settings = dict(
             observables_file=None,
-            # TODO: support input of stellar mass distribution
-            obs_min=min_logmstar,
-            obs_max=max_logmstar,
+            obs_min=self.min_logmstar,
+            obs_max=self.max_logmstar,
+            dndlogmstar=self.dndlogmstar,
             zmin=np.array([0.0, 0.0]),
             zmax=np.array([0.5, 0.5]),
             nz=15,
-            nobs=300,
+            nobs=self.dndlogmstar.shape[1] if self.dndlogmstar is not None else 300,
             observable_h_unit="1/h^2",
         )
         self.spectra = Spectra(
