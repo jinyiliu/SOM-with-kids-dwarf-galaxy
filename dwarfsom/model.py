@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import pyccl as ccl
 from scipy.interpolate import interp1d
@@ -195,17 +196,21 @@ class DSigmaModel:
     ):
         if not len(param_values) == len(param_names):
             raise ValueError
-        for param_name, param_values in zip(param_names, param_values):
+        for param_name, param_value in zip(param_names, param_values):
             if param_name in self.hmf.keys():
-                self.hmf[param_name] = param_values
-                self.spectra.update(**{param_name: param_values})
+                self.hmf[param_name] = param_value
+                self.spectra.update(**{param_name: param_value})
             elif param_name in self.hod_params.keys():
-                self.hod_params[param_name] = param_values
                 self.spectra.update(
-                    hod_params = self.hod_params
+                    hod_params ={
+                        **self.hod_params,
+                        param_name: param_value,
+                    }
                 )
             else:
-                raise NotImplementedError
+                raise NotImplementedError(
+                    f"Parameter {param_name} is not implemented."
+                )
 
 
 def Pgm2DSigma(
