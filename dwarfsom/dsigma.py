@@ -264,6 +264,12 @@ class DSigma:
 
         df.to_csv(os.path.join(save_dir, fname), index=False)
 
+        # Save covariance matrix
+        np.save(
+            os.path.join(save_dir, fname.replace(".csv", "_cov.npy")),
+            self.cov,
+        )
+
 
     def degree2hMpc(self, degree: np.ndarray | float):
         DA = np.average(
