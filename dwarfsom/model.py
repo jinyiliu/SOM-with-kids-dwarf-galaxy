@@ -85,12 +85,12 @@ class DSigmaModel:
             halo_profile_model_sat="NFW",
             halo_concentration_model_dm="Duffy08",
             halo_concentration_model_sat="Duffy08",
-            norm_cen=1., # Normalisation of c(M) relation for central galaxies
-            norm_sat=1., # Normalisation of c(M) relation for satellite galaxies
+            norm_cen=0.939, # Normalisation of c(M) relation for central galaxies
+            norm_sat=0.840, # Normalisation of c(M) relation for satellite galaxies
             eta_cen=0., # Bloating parameter for central galaxies
             eta_sat=0., # Bloating parameter for satellite galaxies
             overdensity=200,
-            delta_c=1.686,  # Critical density threshold for collapse
+            delta_c=1.686, # Critical density threshold for collapse
         )
         self.hod_params = dict(
             log10_obs_norm_c=10.521,
