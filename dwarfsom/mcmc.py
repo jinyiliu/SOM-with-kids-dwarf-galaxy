@@ -76,24 +76,23 @@ class MCMC:
 
             if prior_type == "flat":
                 low, high = self.param_priors[param][1]
-                p0[:, i] = np.random.uniform(low=low, high=high, size=n_walkers)
+                p0[:, i] = np.random.uniform(
+                    low=low, high=high, size=n_walkers)
 
             if prior_type == "gaussian":
                 mean, cov = self.param_priors[param][1]
                 if isinstance(cov, float):
-                    p0[:, i] = np.random.normal(loc=mean, scale=cov,
-                                                size=n_walkers)
-                else:
-                    pass
+                    p0[:, i] = np.random.normal(
+                        loc=mean, scale=cov, size=n_walkers)
 
         return p0
 
     def run_mcmc(
             self,
-            n_walkers: int = 100,
-            n_steps: int = 500,
-            n_burn_in_steps: int = 100,
-            progress: bool = True,
+            n_walkers: int=100,
+            n_steps: int=500,
+            n_burn_in_steps: int=100,
+            progress: bool=True,
             progress_kwargs=_tqdm_style,
             **kwargs,
     ):
@@ -135,22 +134,19 @@ class MCMC:
         """Get the chain of samples from the MCMC sampler."""
         if self.sampler is None:
             raise ValueError("MCMC sampler has not been run yet.")
-        else:
-            return self.sampler.get_chain(flat=flat)
+
+        return self.sampler.get_chain(flat=flat)
 
     def save_chain(self, flat=True, fname="mcmc_chain.npy"):
         """Save the chain of samples from the MCMC sampler."""
-        if self.sampler is None:
-            raise ValueError("MCMC sampler has not been run yet.")
-        else:
-            np.save(fname, self.sampler.get_chain(flat=flat))
+        np.save(fname, self.sampler.get_chain(flat=flat))
 
     def save_log_prob(self, flat=True, fname="mcmc_log_prob.npy"):
         """Save the log probabilities of the samples from the MCMC sampler."""
         if self.sampler is None:
             raise ValueError("MCMC sampler has not been run yet.")
-        else:
-            np.save(fname, self.sampler.get_log_prob(flat=flat))
+
+        np.save(fname, self.sampler.get_log_prob(flat=flat))
 
 
 def compute_quantiles(
