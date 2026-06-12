@@ -23,6 +23,7 @@ class DSigmaModel:
     def __init__(
             self,
             zl: np.ndarray | float,
+            param_names: list[str],
             dsigma_mean_rp: np.ndarray | None=None,
             min_logmstar: np.ndarray | None=None,
             max_logmstar: np.ndarray | None=None,
@@ -32,6 +33,7 @@ class DSigmaModel:
 
         Args:
             zl: Redshifts of the lenses.
+            param_names: Parameter names.
             dsigma_mean_rp:
             min_logmstar:
             max_logmstar:
@@ -54,6 +56,7 @@ class DSigmaModel:
                     "dndlogmstar must have the same lenght as min_logmstar and max_logmstar."
                 )
         self.dndlogmstar = dndlogmstar
+        self._nobs = dndlogmstar.shape[1] if dndlogmstar is not None else 300
 
         if dsigma_mean_rp is not None:
             if dsigma_mean_rp.ndim == 1:
@@ -64,6 +67,7 @@ class DSigmaModel:
         self.dsigma_mean_rp = dsigma_mean_rp
 
         self.zl = zl
+        self.param_names = param_names
 
         self.hmf = dict(
             k_vec=k_vec,
@@ -117,7 +121,7 @@ class DSigmaModel:
             zmin=np.array([0.0, 0.0]),
             zmax=np.array([0.5, 0.5]),
             nz=15,
-            nobs=self.dndlogmstar.shape[1] if self.dndlogmstar is not None else 300,
+            nobs=self._nobs,
             observable_h_unit="1/h^2",
         )
         self.spectra = Spectra(
@@ -154,42 +158,33 @@ class DSigmaModel:
             **cosmo_Planck18,
         )
 
-    def get_model_func(
-            self,
-            param_names: list[str],
-            evaluate_at_mean_rp: bool=True,
-    ) -> Callable:
-        if evaluate_at_mean_rp: # Generate data vector for MCMC
-            if self.dsigma_mean_rp is None:
-                raise ValueError(
-                    "dsigma_mean_rp must have been set."
-                )
-            def model_func(param_values: np.ndarray) -> np.ndarray | list[np.ndarray]:
-                self._update_spectra(param_names, param_values)
-                _sep, _dsigma = Pgm2DSigma(
-                    model=self.spectra,
-                    rpmin=0.01,
-                    rpmax=40,
-                    components=False,
-                )
-                dsigma = []
-                for mean_rp, _ds in zip(self.dsigma_mean_rp, _dsigma):
-                    dsigma.append(
-                        np.interp(mean_rp, _sep, _ds)
-                    )
+    def model_evaluated_at_mean_rp(self, param_values) -> np.ndarray:
+        self._update_spectra(self.param_names, param_values)
+        _sep, _dsigma = Pgm2DSigma(
+            model=self.spectra,
+            rpmin=0.01,
+            rpmax=40,
+            components=False,
+        )
+        dsigma = []
+        for mean_rp, _ds in zip(self.dsigma_mean_rp, _dsigma):
+            dsigma.append(
+                np.interp(mean_rp, _sep, _ds)
+            )
 
-                return np.array(dsigma).flatten()
-        else: # Generate dsigma curve for visualisation
-            def model_func(param_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-                self._update_spectra(param_names, param_values)
-                sep, dsigma = Pgm2DSigma(
-                    model=self.spectra,
-                    rpmin=0.01,
-                    rpmax=40,
-                    components=False,
-                )
-                return sep, dsigma
-        return model_func
+        return np.array(dsigma).flatten()
+
+
+    def model(self, param_values) -> tuple[np.ndarray, np.ndarray]:
+        self._update_spectra(self.param_names, param_values)
+        sep, dsigma = Pgm2DSigma(
+            model=self.spectra,
+            rpmin=0.01,
+            rpmax=40,
+            components=False,
+        )
+        return sep, dsigma
+
 
     def _update_spectra(
             self, param_names: list[str], param_values: np.ndarray,
