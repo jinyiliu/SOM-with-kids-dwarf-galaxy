@@ -1,3 +1,12 @@
+import os
+
+n_threads = 4
+os.environ["OMP_NUM_THREADS"] = str(n_threads)
+os.environ["MKL_NUM_THREADS"] = str(n_threads)
+os.environ["OPENBLAS_NUM_THREADS"] = str(n_threads)
+os.environ["NUMEXPR_NUM_THREADS"] = str(n_threads)
+os.environ["VECLIB_MAXIMUM_THREADS"] = str(n_threads)
+
 import copy
 import numpy as np
 import pyccl as ccl
@@ -18,6 +27,53 @@ cosmo_Planck18 = dict(
 )
 
 k_vec = np.logspace(start=-4, stop=4, num=100)
+
+_hmf = dict(
+    k_vec=k_vec,
+    # Keyword arguments for hmf
+    lnk_min=np.log(10 ** -4),
+    lnk_max=np.log(10 ** 4),
+    dlnk=(np.log(10 ** 4) - np.log(10 ** (-4))) / 100,
+    Mmin=9.,
+    Mmax=16.,
+    dlog10m=0.05,
+    mdef_model="SOMean",
+    hmf_model="Tinker10",
+    transfer_model="CAMB",
+    transfer_params=None,
+    growth_model="CambGrowth",
+    growth_params=None,
+    # Keyword arguments for halomod
+    bias_model="Tinker10",
+    halo_profile_model_dm="NFW",
+    halo_profile_model_sat="NFW",
+    halo_concentration_model_dm="Duffy08",
+    halo_concentration_model_sat="Duffy08",
+    norm_cen=0.939, # Normalisation of c(M) relation for central galaxies
+    norm_sat=0.840, # Normalisation of c(M) relation for satellite galaxies
+    eta_cen=0., # Bloating parameter for central galaxies
+    eta_sat=0., # Bloating parameter for satellite galaxies
+    overdensity=200,
+    delta_c=1.686, # Critical density threshold for collapse
+)
+
+_hod_params = dict(
+    log10_obs_norm_c=10.521,
+    log10_m_ch=11.145,
+    g1=7.385,
+    g2=0.201,
+    sigma_log10_O_c=0.159,
+    norm_s=0.562,
+    pivot=13.0,
+    alpha_s=-0.847,
+    beta_s=2,
+    b0=0.120,
+    b1=1.177,
+    b2=0.0,
+    A_cen=None, # Assembly bias
+    A_sat=None, # Assembly bias
+)
+
 
 class DSigmaModel:
     def __init__(
@@ -69,50 +125,6 @@ class DSigmaModel:
         self.zl = zl
         self.param_names = param_names
 
-        self.hmf = dict(
-            k_vec=k_vec,
-            # Keyword arguments for hmf
-            lnk_min=np.log(10 ** -4),
-            lnk_max=np.log(10 ** 4),
-            dlnk=(np.log(10 ** 4) - np.log(10 ** (-4))) / 100,
-            Mmin=9.,
-            Mmax=16.,
-            dlog10m=0.05,
-            mdef_model="SOMean",
-            hmf_model="Tinker10",
-            transfer_model="CAMB",
-            transfer_params=None,
-            growth_model="CambGrowth",
-            growth_params=None,
-            # Keyword arguments for halomod
-            bias_model="Tinker10",
-            halo_profile_model_dm="NFW",
-            halo_profile_model_sat="NFW",
-            halo_concentration_model_dm="Duffy08",
-            halo_concentration_model_sat="Duffy08",
-            norm_cen=0.939, # Normalisation of c(M) relation for central galaxies
-            norm_sat=0.840, # Normalisation of c(M) relation for satellite galaxies
-            eta_cen=0., # Bloating parameter for central galaxies
-            eta_sat=0., # Bloating parameter for satellite galaxies
-            overdensity=200,
-            delta_c=1.686, # Critical density threshold for collapse
-        )
-        self.hod_params = dict(
-            log10_obs_norm_c=10.521,
-            log10_m_ch=11.145,
-            g1=7.385,
-            g2=0.201,
-            sigma_log10_O_c=0.159,
-            norm_s=0.562,
-            pivot=13.0,
-            alpha_s=-0.847,
-            beta_s=2,
-            b0=0.120,
-            b1=1.177,
-            b2=0.0,
-            A_cen=None, # Assembly bias
-            A_sat=None, # Assembly bias
-        )
         self.hod_settings = dict(
             observables_file=None,
             obs_min=self.min_logmstar,
@@ -124,88 +136,29 @@ class DSigmaModel:
             nobs=self._nobs,
             observable_h_unit="1/h^2",
         )
-        self.spectra = Spectra(
-            nonlinear_mode=None,
-            dewiggle=False,
-            response=False,
-            pointmass=False,
-            # If True, will be able to use Spectra.obs method
-            compute_observable=False,
-            mb=13.87, # Gas distribution mass pivot parameter
-            # Compute beta_nl on the fly when nonlinear_mode is "bnl"
-            beta_nl=None,
-            one_halo_ktrunc=0.1,
-            two_halo_ktrunc=2.0,
-            poisson_model="constant",
-            poisson_params={
-                "poisson": 0.417,
-            },
-            hod_model="Cacciato",
-            hod_params=self.hod_params,
-            hod_settings=self.hod_settings,
-            hod_settings_mm=None,
-            obs_settings=None,
-            # Effective parameter for nonlinear_model "fortuna"
-            t_eff=0.,
-            one_halo_ktrunc_ia=4.0,
-            two_halo_ktrunc_ia=6.0,
-            align_params=None,  # For SatelliteAlignment class
-
-            # Kwargs for the parent class of Spectra: HaloModelIngredients
-            **self.hmf,
-            # Kwargs for parent class of HaloModelIngredients: CosmologyBase
-            z_vec=self.zl,
-            **cosmo_Planck18,
-        )
 
     def model_evaluated_at_mean_rp(self, param_values) -> np.ndarray:
-        self._update_spectra(self.param_names, param_values)
-        _sep, _dsigma = Pgm2DSigma(
-            model=self.spectra,
-            rpmin=0.01,
-            rpmax=40,
-            components=False,
-        )
+        _sep, _dsigma = self.model(param_values)
         dsigma = []
         for mean_rp, _ds in zip(self.dsigma_mean_rp, _dsigma):
             dsigma.append(
                 np.interp(mean_rp, _sep, _ds)
             )
-
         return np.array(dsigma).flatten()
 
 
     def model(self, param_values) -> tuple[np.ndarray, np.ndarray]:
-        self._update_spectra(self.param_names, param_values)
-        sep, dsigma = Pgm2DSigma(
-            model=self.spectra,
+        hmf, hod_params = _update_hmf_hod_params(self.param_names, param_values)
+        spectra = _create_OnePowerSpectra_instance(
+            self.zl, hmf, hod_params, self.hod_settings)
+        _sep, _dsigma = Pgm2DSigma(
+            model=spectra,
             rpmin=0.01,
             rpmax=40,
             components=False,
         )
-        return sep, dsigma
+        return _sep, _dsigma
 
-
-    def _update_spectra(
-            self, param_names: list[str], param_values: np.ndarray,
-    ):
-        if not len(param_values) == len(param_names):
-            raise ValueError
-        for param_name, param_value in zip(param_names, param_values):
-            if param_name in self.hmf.keys():
-                self.hmf[param_name] = param_value
-                self.spectra.update(**{param_name: param_value})
-            elif param_name in self.hod_params.keys():
-                self.spectra.update(
-                    hod_params ={
-                        **self.hod_params,
-                        param_name: param_value,
-                    }
-                )
-            else:
-                raise NotImplementedError(
-                    f"Parameter {param_name} is not implemented."
-                )
 
 
 def Pgm2DSigma(
@@ -226,3 +179,65 @@ def Pgm2DSigma(
         components=components,
     )
     return transformer()
+
+
+def _update_hmf_hod_params(
+        param_names: list[str], param_values: np.ndarray,
+) -> tuple[dict, dict]:
+    hmf = copy.deepcopy(_hmf)
+    hod_params = copy.deepcopy(_hod_params)
+    if not len(param_values) == len(param_names):
+        raise ValueError
+    for param_name, param_value in zip(param_names, param_values):
+        if param_name in hmf.keys():
+            hmf[param_name] = param_value
+        elif param_name in hod_params.keys():
+            hod_params[param_name] = param_value
+        else:
+            raise NotImplementedError(
+                f"Parameter {param_name} is not implemented."
+            )
+    return hmf, hod_params
+
+
+def _create_OnePowerSpectra_instance(
+        zl: np.ndarray,
+        hmf: dict,
+        hod_params: dict,
+        hod_settings: dict,
+) -> Spectra:
+    spectra = Spectra(
+        nonlinear_mode=None,
+        dewiggle=False,
+        response=False,
+        pointmass=False,
+        # If True, will be able to use Spectra.obs method
+        compute_observable=False,
+        mb=13.87,  # Gas distribution mass pivot parameter
+        # Compute beta_nl on the fly when nonlinear_mode is "bnl"
+        beta_nl=None,
+        one_halo_ktrunc=0.1,
+        two_halo_ktrunc=2.0,
+        poisson_model="constant",
+        poisson_params={
+            "poisson": 0.417,
+        },
+        hod_model="Cacciato",
+        hod_params=hod_params,
+        hod_settings=hod_settings,
+        hod_settings_mm=None,
+        obs_settings=None,
+        # Effective parameter for nonlinear_model "fortuna"
+        t_eff=0.,
+        one_halo_ktrunc_ia=4.0,
+        two_halo_ktrunc_ia=6.0,
+        align_params=None,  # For SatelliteAlignment class
+
+        # Kwargs for the parent class of Spectra: HaloModelIngredients
+        **hmf,
+        # Kwargs for parent class of HaloModelIngredients: CosmologyBase
+        z_vec=zl,
+        **cosmo_Planck18,
+    )
+    return spectra
+
