@@ -26,6 +26,8 @@ cosmo_Planck18 = dict(
     sigma_8=0.801,
 )
 
+h0_GAMA = 0.7 # See Driver et al. (2022)
+
 k_vec = np.logspace(start=-4, stop=4, num=100)
 
 _hmf = dict(
@@ -84,6 +86,7 @@ class DSigmaModel:
             min_logmstar: np.ndarray | None=None,
             max_logmstar: np.ndarray | None=None,
             dndlogmstar: np.ndarray | None=None,
+            use_single_power_law_shmr: bool=False,
     ):
         """
 
@@ -104,15 +107,16 @@ class DSigmaModel:
             raise ValueError(
                 "zl, min_logmstar, and max_logmstar must have the same length."
             )
-        self.min_logmstar = min_logmstar
-        self.max_logmstar = max_logmstar
+        self.min_logmstar = min_logmstar + 2 * np.log10(h0_GAMA)
+        self.max_logmstar = max_logmstar + 2 * np.log10(h0_GAMA)
         if dndlogmstar is not None:
             if not len(dndlogmstar) == len(min_logmstar) == len(max_logmstar):
                 raise ValueError(
-                    "dndlogmstar must have the same lenght as min_logmstar and max_logmstar."
+                    "dndlogmstar must have the same length as min_logmstar and max_logmstar."
                 )
         self.dndlogmstar = dndlogmstar
         self._nobs = dndlogmstar.shape[1] if dndlogmstar is not None else 300
+        self.use_single_power_law_shmr = use_single_power_law_shmr
 
         if dsigma_mean_rp is not None:
             if dsigma_mean_rp.ndim == 1:
@@ -182,10 +186,14 @@ def Pgm2DSigma(
 
 
 def _update_hmf_hod_params(
-        param_names: list[str], param_values: np.ndarray,
+        param_names: list[str],
+        param_values: np.ndarray,
+        use_single_power_law_shmr: bool
 ) -> tuple[dict, dict]:
     hmf = copy.deepcopy(_hmf)
     hod_params = copy.deepcopy(_hod_params)
+    if use_single_power_law_shmr:
+        hod_params["g2"] = "g1"
     if not len(param_values) == len(param_names):
         raise ValueError
     for param_name, param_value in zip(param_names, param_values):
