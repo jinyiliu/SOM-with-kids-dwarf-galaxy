@@ -94,8 +94,8 @@ class DSigmaModel:
             zl: Redshifts of the lenses.
             param_names: Parameter names.
             dsigma_mean_rp:
-            min_logmstar:
-            max_logmstar:
+            min_logmstar: In unit of solar mass without little h.
+            max_logmstar: In unit of solar mass without little h.
             dndlogmstar: Stellar mass distribution in the stellar mass range
                 (min_logmstar, max_logmstar). It should be normalised such that
                 np.sum(dndlogmstar[0]) == len(dndlogmstar[0]).
