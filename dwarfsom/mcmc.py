@@ -26,6 +26,9 @@ class MCMC:
         self.cov = covariance_matrix
         self.inv_cov = np.linalg.inv(covariance_matrix)
         self.param_priors = param_priors
+        self.param_ranges = [
+            prior_range for prior_type, prior_range in param_priors.values()
+        ]
         self.n_dim = len(param_priors.keys()) # number of free parameters being sampled
 
 
@@ -33,30 +36,20 @@ class MCMC:
         """Log prior of the parameters.
 
         Notes:
-            Support flat priors, ["flat", (low, high)], and Gausssian priors,
-            ["gaussian", (mean, std)].
+            Support only flat priors, ["flat", (low, high)].
         """
         log_prior = 0.
 
-        for param, value in zip(self.param_priors.keys(), params):
-            prior_type = self.param_priors[param][0]
-
-            if prior_type == "flat":
-                low, high = self.param_priors[param][1]
-                if value < low or value > high:
-                    return -np.inf
-
-            if prior_type == "gaussian":
-                mean, cov = self.param_priors[param][1]
-                if isinstance(cov, float):
-                    log_prior += -0.5 * ((value - mean) / cov) ** 2
-                else:
-                    pass
+        if self.outside_param_ranges(params):
+            return -np.inf
 
         return log_prior
 
     def Gaussian_log_likelihood(self, params):
-        return -0.5 * (self.chi2(params)) + self._log_prior(params)
+        if self.outside_param_ranges(params):
+            return -np.inf
+        log_prob = -0.5 * (self.chi2(params)) + self._log_prior(params)
+        return log_prob
 
     def chi2(self, params):
         if not isinstance(params, np.ndarray):
@@ -107,6 +100,15 @@ class MCMC:
             raise ValueError("MCMC sampler has not been run yet.")
 
         np.save(fname, self.sampler.get_log_prob(flat=flat))
+
+    def outside_param_ranges(self, params):
+        """Check if any parameter is outside its allowed range."""
+        for p, (low, high) in zip(params, self.param_ranges):
+            if p < low or p > high:
+                return True
+
+        return False
+
 
 
 def run_mcmc(
