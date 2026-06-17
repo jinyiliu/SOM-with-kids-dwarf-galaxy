@@ -36,6 +36,7 @@ _KiDS_DIR = os.path.join(_DATA_DIR, "KiDS_DR4")
 _KiDS_TILE_DATA_DIR = os.path.join(_KiDS_DIR, "ugriZYJHKs_tile_cats")
 _KiDS_DMAG_path = os.path.join(_KiDS_DIR, "KiDS_DMAG_R_zeropoint_corrections.csv")
 _KiDS_WL_DATA_DIR = os.path.join(_KiDS_DIR, "KiDS_DR4.1_gold_WL_cat")
+_KiDS_BGS_DIR = os.path.join(_KiDS_DIR, "BrightGalaxySample")
 _KiDS_gold_WL_FITS_path = os.path.join(_KiDS_WL_DATA_DIR, "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits")
 KiDS_gold_WL_CSV_path = os.path.join(_KiDS_WL_DATA_DIR, "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.csv")
 _KiDS_BASIC_RANDOMS_DIR = os.path.join(_KiDS_DIR, "BASIC_RANDOMS")
@@ -59,6 +60,7 @@ _KiDS_selected_columns = [
     "RAJ2000",
     "DECJ2000",
     "MAG_AUTO",
+    "MAG_GAAP_r",
     "MAGERR_AUTO",
     "DMAG_R",
     "EXTINCTION_r",
@@ -75,6 +77,17 @@ _KiDS_gold_WL_selected_columns = [
     "e2",
     "weight",
     "Z_B",
+]
+
+_KiDS_BGS_selected_columns = [
+    "ID",
+    "RAJ2000",
+    "DECJ2000",
+    "REDSHIFT",
+    "MASS_MED",
+    "MASS_BEST",
+    "MAG_GAAP_r",
+    "MAG_AUTO",
 ]
 
 _GAMA_DIR = os.path.join(_DATA_DIR, "GAMA_DR4")
@@ -312,9 +325,47 @@ def save_KiDS_gold_WL_csv_cat_with_selected_columns(
         os.path.join(save_dir, fname), format="csv", overwrite=overwrite)
 
 
+def build_KiDS_BrightGalaxySample_catalogue(
+        savedir: str=_KiDS_BGS_DIR,
+        fname: str="processed_KiDS_DR4_brightsample.csv",
+):
+    kids_preselected_path = os.path.join(
+        _KiDS_DIR, "KiDS_preselected_candidates.csv"
+    )
+    if not os.path.exists(kids_preselected_path):
+        raise ValueError(
+            "Please generate the \"KiDS_preselected_candidates.csv\" first."
+        )
+    kids_preselected = pd.read_csv(
+        kids_preselected_path,
+    )
+    kids_bgs = pd.read_csv(
+        os.path.join(
+            _KiDS_BGS_DIR,
+            "KiDS_DR4_brightsample_LePhare.csv",
+        ),
+    )
+    combined = pd.merge(
+        kids_bgs,
+        kids_preselected,
+        on="ID",
+        how="inner",
+    )
+    combined["RAJ2000"] = combined["RAJ2000_x"]
+    combined["DECJ2000"] = combined["DECJ2000_y"]
+    combined = combined[_KiDS_BGS_selected_columns]
+    combined["MASS_BEST_CALIB"] = combined["MASS_BEST"] + (
+        (combined["MAG_GAAP_r"] - combined["MAG_AUTO"]) / 2.5
+    )
+    combined.to_csv(
+        os.path.join(savedir, fname)
+    )
+
+
 
 if __name__ == "__main__":
     build_KiDS_random_catalogues()
     build_KiDS_preselected_candidates()
     build_GAMA_spectroscopic_catalogue()
     save_KiDS_gold_WL_csv_cat_with_selected_columns()
+    build_KiDS_BrightGalaxySample_catalogue()
