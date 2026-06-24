@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from treecorr import NGCorrelation, Catalog
 from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM, Planck18
+from astropy import constants as c
 from astropy.cosmology import units as cu
 from deprecation import deprecated
 
@@ -125,8 +126,8 @@ class DSigma:
             randoms: list[Random] | None=None,
             cosmo=Planck18,
             n_rp_bins: int=15,
-            min_rp: float=0.02,
-            max_rp: float=20.0,
+            min_rp: float=0.02, # unit h^-1 Mpc
+            max_rp: float=20.0, # unit h^-1 Mpc
             patch_centers: str | None=None,
             npatch: int | None=None,
             var_method: str="shot",
@@ -278,7 +279,8 @@ class DSigma:
             weights=self.lens.dndz[1],
         )
         radian = np.radians(degree)
-        hMpc = radian * DA
+        Mpc = radian * DA
+        hMpc = Mpc / self.cosmo.h
         return hMpc
 
 
@@ -287,7 +289,8 @@ class DSigma:
             a=self.cosmo.angular_diameter_distance(self.lens.dndz[0]).value,
             weights=self.lens.dndz[1],
         )
-        radian = hMpc / DA
+        Mpc = hMpc * self.cosmo.h
+        radian = Mpc / DA
         degree = np.degrees(radian)
         return degree
 
