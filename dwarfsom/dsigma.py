@@ -273,25 +273,19 @@ class DSigma:
 
 
     def degree2hMpc(self, degree: np.ndarray | float):
-        DA = np.average(
+        DA = np.average( # angular dimeter distance in Mpc/h per radian
             a=self.cosmo.angular_diameter_distance(self.lens.dndz[0]).value,
             weights=self.lens.dndz[1],
-        )
-        radian = np.radians(degree)
-        Mpc = radian * DA
-        hMpc = Mpc / self.cosmo.h
-        return hMpc
+        ) * self.cosmo.h
+        return np.deg2rad(degree) * DA
 
 
     def hMpc2degree(self, hMpc: np.ndarray | float):
-        DA = np.average(
+        DA = np.average( # angular dimeter distance in Mpc/h per radian
             a=self.cosmo.angular_diameter_distance(self.lens.dndz[0]).value,
             weights=self.lens.dndz[1],
-        )
-        Mpc = hMpc * self.cosmo.h
-        radian = Mpc / DA
-        degree = np.degrees(radian)
-        return degree
+        ) * self.cosmo.h
+        return np.rad2deg(hMpc / DA)
 
 @deprecated
 def get_combined_dsigma(dsigma_list: list[DSigma]):
@@ -362,4 +356,4 @@ def critical_surface_density(
         sigma_crit /= (1.0 + z_l)**2
 
     return sigma_crit.to(
-        cu.littleh * u.Msun / u.pc**2, cu.with_H0(cosmology.H0))
+        cu.littleh * u.Msun / u.pc**2, cu.with_H0(cosmology.H0)).value
