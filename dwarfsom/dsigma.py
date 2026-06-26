@@ -233,12 +233,11 @@ class DSigma:
     def effective_critical_surface_density(self):
         z_l, z_s = np.meshgrid(self.lens.dndz[0], self.source.dndz[0], indexing="ij")
         weights = np.outer(self.lens.dndz[1], self.source.dndz[1])
-        sigma_crit = critical_surface_density(z_l, z_s, self.cosmo)
-        finite_mask = np.isfinite(sigma_crit)
+        sigma_crit_inv = critical_surface_density(z_l, z_s, self.cosmo) ** -1
         sigma_crit_eff = np.average(
-            sigma_crit[finite_mask],
-            weights=weights[finite_mask],
-        )
+            sigma_crit_inv,
+            weights=weights,
+        ) ** -1
         return sigma_crit_eff
 
 
