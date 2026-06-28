@@ -8,14 +8,11 @@ from natsort import natsorted
 from dataclasses import dataclass
 from treecorr import NGCorrelation, Catalog
 from astropy import units as u
-from astropy.cosmology import FlatLambdaCDM, Planck18
+from astropy.cosmology import Planck18
 from astropy import constants as c
 from astropy.cosmology import units as cu
-from deprecation import deprecated
 
 from dwarfsom.build_catalogue import KiDS_RANDOMS_DIR
-
-# cosmo_default = FlatLambdaCDM(H0=100, Om0=0.3)
 
 @dataclass
 class Lens:
@@ -287,29 +284,6 @@ class DSigma:
         ) * self.cosmo.h
         return np.rad2deg(hMpc / DA)
 
-@deprecated
-def get_combined_dsigma(dsigma_list: list[DSigma]):
-    """Combine multiple DSigma measurements by inverse-variance weighting."""
-    # TODO: replace the inputs with dsigma_tangential and cov only
-    assert dsigma_list[0].lens == dsigma_list[1].lens == dsigma_list[2].lens
-    mean_rp = dsigma_list[0].mean_rp
-    dsigma_tangential = np.tile(mean_rp, (len(dsigma_list), 1))
-    weights = np.tile(mean_rp, (len(dsigma_list), 1))
-    var = np.tile(mean_rp, (len(dsigma_list), 1))
-
-    for i, dsigma in enumerate(dsigma_list):
-        dsigma_tangential[i] = dsigma.dsigma_tangential
-        weights[i] = np.diag(dsigma.cov) ** -1
-        var[i] = np.diag(dsigma.cov)
-
-    dsigma_tangential = np.average(
-        dsigma_tangential,
-        weights=weights,
-        axis=0,
-    )
-    var = 1 / np.sum(1 / var, axis=0)
-
-    return mean_rp, dsigma_tangential, var
 
 
 def get_list_Random_catalogues(save_dir=KiDS_RANDOMS_DIR) -> list[Random]:
