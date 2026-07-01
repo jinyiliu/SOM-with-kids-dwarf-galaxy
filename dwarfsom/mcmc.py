@@ -1,5 +1,6 @@
 import numpy as np
 from emcee import EnsembleSampler
+from dynesty import NestedSampler, DynamicNestedSampler
 from typing import Callable
 from multiprocessing import Pool
 
@@ -40,13 +41,13 @@ class MCMC:
         """
         log_prior = 0.
 
-        if self.outside_param_ranges(params):
+        if self._outside_param_ranges(params):
             return -np.inf
 
         return log_prior
 
     def Gaussian_log_likelihood(self, params):
-        if self.outside_param_ranges(params):
+        if self._outside_param_ranges(params):
             return -np.inf
         log_prob = -0.5 * (self.chi2(params)) + self._log_prior(params)
         return log_prob
@@ -59,8 +60,18 @@ class MCMC:
         chi2 = (self.dv - pred).T @ self.inv_cov @ (self.dv - pred)
         return chi2
 
+    def prior_transform(self, u):
+        """Prior transform function for nested sampler."""
+        x = np.array(u)
+        for i, param_range in enumerate(self.param_ranges):
+            low, high = param_range
+            x[i] = low + (high - low) * x[i]
+
+        return x
+
+
     def get_random_walk(self, n_walkers: int):
-        """Generate a random walk for the MCMC."""
+        """Generate a random walk for the emcee MCMC sampler."""
         p0 = np.zeros((n_walkers, self.n_dim))
 
         for i, param in enumerate(self.param_priors.keys()):
@@ -88,21 +99,30 @@ class MCMC:
         if self.sampler is None:
             raise ValueError("MCMC sampler has not been run yet.")
 
-        return self.sampler.get_chain(flat=flat)
+        if isinstance(self.sampler, EnsembleSampler):
+            return self.sampler.get_chain(flat=flat)
+
+        return self.sampler.results.samples
 
     def save_chain(self, flat=True, fname="mcmc_chain.npy"):
         """Save the chain of samples from the MCMC sampler."""
-        np.save(fname, self.sampler.get_chain(flat=flat))
+        if isinstance(self.sampler, EnsembleSampler):
+            np.save(fname, self.get_chain(flat=flat))
+
+        np.save(fname, self.get_chain())
 
     def save_log_prob(self, flat=True, fname="mcmc_log_prob.npy"):
         """Save the log probabilities of the samples from the MCMC sampler."""
         if self.sampler is None:
             raise ValueError("MCMC sampler has not been run yet.")
 
-        np.save(fname, self.sampler.get_log_prob(flat=flat))
+        if isinstance(self.sampler, EnsembleSampler):
+            np.save(fname, self.sampler.get_log_prob(flat=flat))
 
-    def outside_param_ranges(self, params):
-        """Check if any parameter is outside its allowed range."""
+        np.save(fname, self.sampler.results.logl)
+
+    def _outside_param_ranges(self, params):
+        """Check if any parameter is outside its allowed range for emcee sampler"""
         for p, (low, high) in zip(params, self.param_ranges):
             if p < low or p > high:
                 return True
@@ -111,7 +131,7 @@ class MCMC:
 
 
 
-def run_mcmc(
+def run_emcee(
         mcmc: MCMC,
         n_walkers: int=100,
         n_burn_in_steps: int=100,
@@ -143,8 +163,65 @@ def run_mcmc(
     return sampler
 
 
-def random_likelihood(params):
-    return -0.5 * np.abs(np.random.normal(size=len(params)))
+def run_nested(
+        mcmc: MCMC,
+        processes: int=4,
+        dynamic: bool=False,
+        nested_kwargs: dict=None,
+):
+    """
+
+    Args:
+        mcmc:
+        processes:
+        dynamic:
+        nested_kwargs: Keyword argumnts for NestedSampler.run_nested or
+            DynamicNestedSampler.run_nested function.
+    """
+    from dynesty.pool import Pool
+
+    if nested_kwargs is None:
+        nested_kwargs = {}
+
+    with Pool(
+        processes,
+        mcmc.Gaussian_log_likelihood,
+        mcmc.prior_transform,
+    ) as pool:
+        # Restore sampler
+        if "resume" in nested_kwargs.keys():
+            if nested_kwargs["resume"]:
+                if "checkpoint_file" not in nested_kwargs.keys():
+                    raise ValueError(
+                        "checkpoint_file must be specified when resume=True for nested sampling."
+                    )
+
+                if dynamic:
+                    sampler = DynamicNestedSampler.restore(
+                        nested_kwargs["checkpoint_file"], pool=pool)
+                else: # use static nested sampler
+                    sampler = NestedSampler.restore(
+                        nested_kwargs["checkpoint_file"], pool=pool)
+        # Create new sampler
+        else:
+            if dynamic:
+                sampler = DynamicNestedSampler(
+                    pool.loglike,
+                    pool.prior_transform,
+                    mcmc.ndim,
+                    pool=pool,
+                )
+            else: # use static nested sampler
+                sampler = NestedSampler(
+                    pool.loglike,
+                    pool.prior_transform,
+                    mcmc.ndim,
+                    pool=pool,
+                )
+
+        sampler.run_nested(**nested_kwargs)
+
+    return sampler
 
 
 def compute_quantiles(
