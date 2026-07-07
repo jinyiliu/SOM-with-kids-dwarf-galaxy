@@ -157,3 +157,9 @@ def load_src_image(
         **query_kwargs,
     )
     return src_image
+
+_tqdm_style = {
+    "ncols": 80,
+    "ascii": " =",
+    "smoothing": 0.,
+}
