@@ -51,8 +51,8 @@ _hmf = dict(
     halo_profile_model_sat="NFW",
     halo_concentration_model_dm="Duffy08",
     halo_concentration_model_sat="Duffy08",
-    norm_cen=0.939, # Normalisation of c(M) relation for central galaxies
-    norm_sat=0.840, # Normalisation of c(M) relation for satellite galaxies
+    norm_cen=1., # Normalisation of c(M) relation for central galaxies
+    norm_sat=1., # Normalisation of c(M) relation for satellite galaxies
     eta_cen=0., # Bloating parameter for central galaxies
     eta_sat=0., # Bloating parameter for satellite galaxies
     overdensity=200,
@@ -66,12 +66,12 @@ _hod_params = dict(
     g2=0.201,
     sigma_log10_O_c=0.159,
     norm_s=0.562,
-    pivot=13.0,
-    alpha_s=-0.847,
+    pivot=13.,
+    alpha_s=-1.,
     beta_s=2,
     b0=0.120,
-    b1=1.177,
-    b2=0.0,
+    b1=0.,
+    b2=0.,
     A_cen=None, # Assembly bias
     A_sat=None, # Assembly bias
 )
@@ -152,7 +152,11 @@ class DSigmaModel:
 
 
     def model(self, param_values) -> tuple[np.ndarray, np.ndarray]:
-        hmf, hod_params = _update_hmf_hod_params(self.param_names, param_values)
+        hmf, hod_params = _update_hmf_hod_params(
+            self.param_names,
+            param_values,
+            self.use_single_power_law_shmr,
+        )
         spectra = _create_OnePowerSpectra_instance(
             self.zl, hmf, hod_params, self.hod_settings)
         _sep, _dsigma = Pgm2DSigma(
