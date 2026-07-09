@@ -31,16 +31,46 @@ def DSigma_1h_cm(
         c: float | None=None,
         f_c: float | None=None,
 ):
+    return DSigma_NFW(rp, log10_M, z_lens, c, f_c)
+
+
+def DSigma_1h_sm_sub(
+        rp: float | np.ndarray,
+        log10_M: float,
+        z_lens: float,
+        c: float | None=None,
+        f_c: float | None=None,
+):
+    return DSigma_NFW(rp, log10_M, z_lens, c, f_c, truncated=True)
+
+
+def DSigma_1h_sm_host():
+    pass
+
+
+def DSigma_2h():
+    pass
+
+
+def DSigma_NFW(
+        rp: float | np.ndarray,
+        log10_M: float,
+        z_lens: float,
+        c: float | None=None,
+        f_c: float | None=None,
+        truncated: bool=False,
+):
     """Analytical NFW excess surface density profile.
 
-    Args:
-        rp: Projected separations in Mpc/h.
-        log10_M: log10 of halo mass M_200m in M_sun
-        z_lens: Lens redshift.
-        c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
-        f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
-            exclusive with c.
-    """
+        Args:
+            rp: Projected separations in Mpc/h.
+            log10_M: log10 of halo mass M_200m in M_sun
+            z_lens: Lens redshift.
+            c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
+            f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
+                exclusive with c.
+            truncated: Truncation.
+        """
     if (c is None) == (f_c is None):
         raise ValueError("Provide exactly one of: c or f_c.")
 
@@ -53,19 +83,13 @@ def DSigma_1h_cm(
     nfw = HaloProfileNFW(
         mass_def=MassDef200m,
         concentration=conc,
-        truncated=False,
-        projected_analytic=True,
-        cumul2d_analytic=True,
+        truncated=truncated,
+        projected_analytic=False,
+        cumul2d_analytic=False,
     )
 
     rp_Mpc = rp / h  # Mpc/h -> physical Mpc
-    Sigma = nfw.projected(Planck18, rp_Mpc, 10**log10_M, a)  # M_sun / Mpc2
-    Sigma_bar = nfw.cumul2d(Planck18, rp_Mpc, 10**log10_M, a)  # M_sun / Mpc2
+    Sigma = nfw.projected(Planck18, rp_Mpc, 10 ** log10_M, a)  # M_sun / Mpc2
+    Sigma_bar = nfw.cumul2d(Planck18, rp_Mpc, 10 ** log10_M, a)  # M_sun / Mpc2
 
     return (Sigma_bar - Sigma) / 1.e12
-
-def DSigma_1h_sm():
-    pass
-
-def DSigma_2h():
-    pass
