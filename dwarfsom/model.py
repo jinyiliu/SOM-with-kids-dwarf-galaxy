@@ -25,7 +25,7 @@ def DSigma():
     pass
 
 def DSigma_1h_cm(
-        rp: float | np.ndarray,
+        rp: np.ndarray,
         log10_M: float,
         z_lens: float,
         c: float | None=None,
@@ -37,7 +37,7 @@ def DSigma_1h_cm(
 
 
 def DSigma_1h_sm_sub(
-        rp: float | np.ndarray,
+        rp: np.ndarray,
         log10_M: float,
         z_lens: float,
         c: float | None=None,
@@ -57,7 +57,7 @@ def DSigma_2h():
 
 
 def DSigma_NFW(
-        rp: float | np.ndarray,
+        rp: np.ndarray,
         log10_M: float,
         z_lens: float,
         c: float | None=None,
