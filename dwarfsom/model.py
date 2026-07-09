@@ -31,7 +31,9 @@ def DSigma_1h_cm(
         c: float | None=None,
         f_c: float | None=None,
 ):
-    return DSigma_NFW(rp, log10_M, z_lens, c, f_c)
+    return DSigma_NFW(
+        rp, log10_M, z_lens, c, f_c, truncated=False, analytic=True
+    )
 
 
 def DSigma_1h_sm_sub(
@@ -41,7 +43,9 @@ def DSigma_1h_sm_sub(
         c: float | None=None,
         f_c: float | None=None,
 ):
-    return DSigma_NFW(rp, log10_M, z_lens, c, f_c, truncated=True)
+    return DSigma_NFW(
+        rp, log10_M, z_lens, c, f_c, truncated=True, analytic=False
+    )
 
 
 def DSigma_1h_sm_host():
@@ -59,6 +63,7 @@ def DSigma_NFW(
         c: float | None=None,
         f_c: float | None=None,
         truncated: bool=False,
+        analytic: bool=False,
 ):
     """Analytical NFW excess surface density profile.
 
@@ -70,6 +75,7 @@ def DSigma_NFW(
             f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
                 exclusive with c.
             truncated: Truncation.
+            analytic: Whether to use analytical algorithm.
         """
     if (c is None) == (f_c is None):
         raise ValueError("Provide exactly one of: c or f_c.")
@@ -84,8 +90,8 @@ def DSigma_NFW(
         mass_def=MassDef200m,
         concentration=conc,
         truncated=truncated,
-        projected_analytic=False,
-        cumul2d_analytic=False,
+        projected_analytic=analytic,
+        cumul2d_analytic=analytic,
     )
 
     rp_Mpc = rp / h  # Mpc/h -> physical Mpc
