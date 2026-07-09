@@ -32,8 +32,7 @@ def DSigma_1h_cm(
         f_c: float | None=None,
 ):
     return DSigma_NFW(
-        rp, log10_M, z_lens, c, f_c, truncated=False, analytic=True
-    )
+        rp, log10_M, z_lens, c, f_c, truncated=False, analytic=True)
 
 
 def DSigma_1h_sm_sub(
@@ -44,8 +43,7 @@ def DSigma_1h_sm_sub(
         f_c: float | None=None,
 ):
     return DSigma_NFW(
-        rp, log10_M, z_lens, c, f_c, truncated=True, analytic=False
-    )
+        rp, log10_M, z_lens, c, f_c, truncated=True, analytic=False)
 
 
 def DSigma_1h_sm_host():
@@ -67,16 +65,43 @@ def DSigma_NFW(
 ):
     """Analytical NFW excess surface density profile.
 
-        Args:
-            rp: Projected separations in Mpc/h.
-            log10_M: log10 of halo mass M_200m in M_sun
-            z_lens: Lens redshift.
-            c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
-            f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
-                exclusive with c.
-            truncated: Truncation.
-            analytic: Whether to use analytical algorithm.
-        """
+    Args:
+        rp: Projected separations in Mpc/h.
+        log10_M: log10 of halo mass M_200m in M_sun.
+        z_lens: Lens redshift.
+        c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
+        f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
+            exclusive with c.
+        truncated: Truncation.
+        analytic: Whether to use analytical algorithm.
+    """
+    nfw, a, M = _get_nfw_profile(
+        log10_M, z_lens, c, f_c, truncated, analytic)
+
+    rp_Mpc = rp / h  # Mpc/h -> physical Mpc
+    Sigma = nfw.projected(Planck18, rp_Mpc, M, a)
+    Sigma_bar = nfw.cumul2d(Planck18, rp_Mpc, M, a)
+
+    return (Sigma_bar - Sigma) / 1.e12
+
+def _get_nfw_profile(
+        log10_M: float,
+        z_lens: float,
+        c: float,
+        f_c: float,
+        truncated: bool,
+        analytic: bool,
+) -> tuple[HaloProfileNFW, float, float]:
+    """Build HaloProfileNFW instance.
+
+    Args:
+        log10_M: log10 host halo mass M_200m [M_sun].
+        z_lens: Lens redshift.
+        c: Concentration. Mutually exclusive with f_c.
+        f_c: Duffy08 amplitude. Mutually exclusive with c.
+        truncated:
+        analytic:
+    """
     if (c is None) == (f_c is None):
         raise ValueError("Provide exactly one of: c or f_c.")
 
@@ -85,7 +110,7 @@ def DSigma_NFW(
     else:
         conc = ConcentrationDuffy08(fc_bar=f_c, mass_def=MassDef200m)
 
-    a = 1. / (1. + z_lens)
+    a = 1.0 / (1.0 + z_lens)
     nfw = HaloProfileNFW(
         mass_def=MassDef200m,
         concentration=conc,
@@ -93,9 +118,4 @@ def DSigma_NFW(
         projected_analytic=analytic,
         cumul2d_analytic=analytic,
     )
-
-    rp_Mpc = rp / h  # Mpc/h -> physical Mpc
-    Sigma = nfw.projected(Planck18, rp_Mpc, 10 ** log10_M, a)  # M_sun / Mpc2
-    Sigma_bar = nfw.cumul2d(Planck18, rp_Mpc, 10 ** log10_M, a)  # M_sun / Mpc2
-
-    return (Sigma_bar - Sigma) / 1.e12
+    return nfw, a, 10 ** log10_M
