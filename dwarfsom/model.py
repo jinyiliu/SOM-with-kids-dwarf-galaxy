@@ -215,3 +215,26 @@ def _satellite_HOD(
     if np.ndim(log10_M) == 0:
         return float(N[0])
     return N
+
+
+def _satellite_radial_distribution(
+        rp_sat: np.ndarray,
+        log10_M: float,
+        z_lens: float,
+        c: float | None=None,
+        f_c: float | None=None,
+):
+    """Projected satellite number density profile.
+
+    Satellites trace the host NFW projected mass:
+    P(r_p_sat | M) is propotional to 2π rp_sat x Σ_NFW(rp_sat | M)
+    """
+    nfw, a, M = _get_nfw_profile(
+        log10_M, z_lens, c, f_c, truncated=False, analytic=True)
+
+    r_phys = np.atleast_1d(np.asarray(rp_sat, dtype=float)) / h # Mpc/h -> physical Mpc
+    Sigma = nfw.projected(Planck18, r_phys, M, a)
+    P_phys = 2 * np.pi * r_phys * Sigma
+    if len(r_phys) > 1:
+        P_phys = P_phys / np.trapezoid(P_phys, r_phys)
+    return P_phys / h
