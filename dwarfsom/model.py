@@ -159,10 +159,11 @@ def _get_nfw_profile(
     """Build HaloProfileNFW instance.
 
     Args:
-        log10_M: log10 host halo mass M_200m [M_sun].
+        log10_M: log10 of host halo mass M_200m in M_sun.
         z_lens: Lens redshift.
-        c: Concentration. Mutually exclusive with f_c.
-        f_c: Duffy08 amplitude. Mutually exclusive with c.
+        c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
+        f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
+            exclusive with c.
         truncated:
         analytic:
     """
@@ -183,3 +184,34 @@ def _get_nfw_profile(
         cumul2d_analytic=analytic,
     )
     return nfw, a, 10 ** log10_M
+
+
+def _satellite_HOD(
+        log10_M: float | np.ndarray,
+        log10_M0: float=11.0,
+        log10_M1: float=12.0,
+        alpha: float=1.0,
+):
+    """Power-law satellite occupation number with a hard cutoff.
+
+    log10⟨N_sat⟩ = alpha x (log10(M - M0) - log10(M1))
+    if M > M0, else 0
+
+    Args:
+        log10_M: log10 of host halo mass M_200m in M_sun.
+        log10_M0: log10 minimum host mass for satellites.
+        log10_M1: log10 mass where ⟨N_sat⟩ = 1.
+        alpha: Power-law slope.
+    """
+    _log10_M = np.atleast_1d(np.asarray(log10_M, dtype=float))
+    N = np.zeros_like(_log10_M)
+    mask = _log10_M > log10_M0
+    N[mask] = 10. ** (
+        alpha * (
+            np.log10(10.**_log10_M[mask] - 10.**log10_M0)
+            - log10_M1
+        )
+    )
+    if np.ndim(log10_M) == 0:
+        return float(N[0])
+    return N
