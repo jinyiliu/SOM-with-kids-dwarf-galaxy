@@ -188,8 +188,8 @@ def _get_nfw_profile(
 
 def _satellite_HOD(
         log10_M: float | np.ndarray,
-        log10_M0: float=11.0,
-        log10_M1: float=12.0,
+        log10_M0: float=7.0,
+        log10_M1: float=13.3,
         alpha: float=1.0,
 ):
     """Power-law satellite occupation number with a hard cutoff.
