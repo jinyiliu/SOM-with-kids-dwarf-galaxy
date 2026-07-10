@@ -84,6 +84,70 @@ def DSigma_NFW(
 
     return (Sigma_bar - Sigma) / 1.e12
 
+
+def DSigma_NFW_offset(
+        rp: np.ndarray,
+        log10_M: float,
+        z_lens: float,
+        rp_sat: float,
+        c: float | None=None,
+        f_c: float | None=None,
+):
+    """Off-centre NFW excess surface density.
+
+    DeltaSigma at projected separation `rp` from a satellite
+    offset by `rp_sat` from the host NFW centre.
+
+    Uses azimuthal averaging over phi, then cumulative radial
+    integration for the mean enclosed surface density.
+
+    Args:
+        rp: Projected separations in Mpc/h.
+        log10_M: log10 of host halo mass M_200m in M_sun.
+        z_lens: Lens redshift.
+        rp_sat: Projected offset of satellite from host centre in Mpc/h.
+        c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
+        f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
+            exclusive with c.
+    """
+    if rp_sat == 0:
+        return DSigma_NFW(
+            rp, log10_M, z_lens, c, f_c, truncated=False, analytic=True)
+
+    nfw, a, M = _get_nfw_profile(
+        log10_M, z_lens, c, f_c, truncated=False, analytic=True)
+
+    rp = np.atleast_1d(rp) / h
+    rp_sat = rp_sat / h
+
+    _n_fine = max(300, 4 * len(rp))
+    _r_min = max(np.min(rp) * 0.3, 1e-5)
+    _r_max = max(np.max(rp) * 1.5, rp_sat + np.max(rp))
+    r_fine = np.logspace(np.log10(_r_min), np.log10(_r_max), _n_fine)
+
+    phi = np.linspace(0, 2 * np.pi, 80)
+
+    Sigma_fine = np.array([
+        np.mean(nfw.projected(
+            Planck18,
+            np.sqrt(rp_sat**2 + r**2 + 2 * rp_sat * r * np.cos(phi)),
+            M,
+            a,
+        ))
+        for r in r_fine
+    ])
+
+    rSigma = r_fine * Sigma_fine
+    I_cum = np.zeros_like(rSigma)
+    dr = r_fine[1:] - r_fine[:-1]
+    I_cum[1:] = 0.5 * np.cumsum(dr * (rSigma[1:] + rSigma[:-1]))
+    Sigma_bar = 2.0 * I_cum / r_fine**2
+    Sigma_bar[0] = Sigma_fine[0]
+
+    dSigma_fine = (Sigma_bar - Sigma_fine) / 1e12
+    return np.interp(rp, r_fine, dSigma_fine)
+
+
 def _get_nfw_profile(
         log10_M: float,
         z_lens: float,
