@@ -9,6 +9,8 @@ from pyccl.halos import (
 from astropy.cosmology import Planck18 as astropy_Planck18
 
 h = astropy_Planck18.H0.value / 100
+_satellite_HOD_log10_M0 = 7.0
+_satellite_HOD_log10_M1 = 13.3
 
 Planck18 = ccl.Cosmology(
     Omega_c=(astropy_Planck18.Om0 - astropy_Planck18.Ob0),
@@ -188,8 +190,8 @@ def _get_nfw_profile(
 
 def _satellite_HOD(
         log10_M: float | np.ndarray,
-        log10_M0: float=7.0,
-        log10_M1: float=13.3,
+        log10_M0: float=_satellite_HOD_log10_M0,
+        log10_M1: float=_satellite_HOD_log10_M1,
         alpha: float=1.0,
 ):
     """Power-law satellite occupation number with a hard cutoff.
