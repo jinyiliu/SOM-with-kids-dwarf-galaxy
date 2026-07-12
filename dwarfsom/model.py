@@ -11,6 +11,9 @@ from astropy.cosmology import Planck18 as astropy_Planck18
 h = astropy_Planck18.H0.value / 100
 _satellite_HOD_log10_M0 = 7.0
 _satellite_HOD_log10_M1 = 13.3
+_satellite_HOD_alpha = 1.0
+
+_cache_host_dsigma = {}
 
 Planck18 = ccl.Cosmology(
     Omega_c=(astropy_Planck18.Om0 - astropy_Planck18.Ob0),
@@ -48,8 +51,33 @@ def DSigma_1h_sm_sub(
         rp, log10_M, z_lens, c, f_c, truncated=True, analytic=False)
 
 
-def DSigma_1h_sm_host():
-    pass
+def DSigma_1h_sm_host(
+        rp: np.ndarray,
+        z_lens: float,
+        c: float | None = None,
+        f_c: float | None = None,
+):
+    """Host halo contribution to satellite-matter ESD.
+
+    Integrates over the halo mass function, satellite HOD, and
+    satellite radial distribution to compute the average host
+    dark matter ESD around satellite galaxies.
+
+    No free parameters — uses fixed HOD and Duffy08 c(M).
+
+    Args:
+        rp: Projected separations in Mpc/h.
+        z_lens: Lens redshift.
+        c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
+        f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
+            exclusive with c.
+    """
+    key = (z_lens, c, f_c)
+    if key not in _cache_host_dsigma:
+        _cache_host_dsigma[key] = _precompute_host_dsigma(
+            z_lens, c, f_c)
+    rp_grid, ds_grid = _cache_host_dsigma[key]
+    return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
 def DSigma_2h():
@@ -192,7 +220,7 @@ def _satellite_HOD(
         log10_M: float | np.ndarray,
         log10_M0: float=_satellite_HOD_log10_M0,
         log10_M1: float=_satellite_HOD_log10_M1,
-        alpha: float=1.0,
+        alpha: float=_satellite_HOD_alpha,
 ):
     """Power-law satellite occupation number with a hard cutoff.
 
@@ -240,3 +268,92 @@ def _satellite_radial_distribution(
     if len(r_phys) > 1:
         P_phys = P_phys / np.trapezoid(P_phys, r_phys)
     return P_phys / h
+
+
+def _precompute_host_dsigma(z_lens, c, f_c):
+    """Precompute the host halo ESD contribution for given z_lens."""
+    from pyccl.halos import MassFuncTinker08
+
+    a = 1.0 / (1.0 + z_lens)
+
+    log10_M = np.linspace(_satellite_HOD_log10_M0, 16.0, 40)
+    log10_M_mid = 0.5 * (log10_M[1:] + log10_M[:-1])
+    dlogM = log10_M[1] - log10_M[0]
+
+    M_mid = 10 ** log10_M_mid
+    N_sat = _satellite_HOD(
+        log10_M_mid,
+        log10_M0=_satellite_HOD_log10_M0,
+        log10_M1=_satellite_HOD_log10_M1,
+        alpha=_satellite_HOD_alpha,
+    )
+
+    hmf = MassFuncTinker08(mass_def=MassDef200m)
+    dndlogM = hmf(Planck18, M_mid, a)
+    n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
+
+    rp_out = np.logspace(-2, np.log10(30), 60)
+    n_rs = 25
+    n_phi = 60
+    n_rfine = 200
+
+    phi = np.linspace(0, 2 * np.pi, n_phi)
+    cos_phi = np.cos(phi)
+
+    result = np.zeros(len(rp_out))
+
+    for i, lm in enumerate(log10_M_mid):
+        if N_sat[i] == 0:
+            continue
+
+        r_vir = MassDef200m.get_radius(Planck18, M_mid[i], a) / h
+        rs_grid = np.logspace(
+            np.log10(0.001), np.log10(0.95 * r_vir), n_rs,
+        )
+        P_rs = _satellite_radial_distribution(
+            rs_grid, lm, z_lens, c=c, f_c=f_c,
+        )
+
+        nfw, _, M = _get_nfw_profile(
+            lm, z_lens, c, f_c, truncated=False, analytic=True,
+        )
+
+        r_max = max(np.max(rp_out), rs_grid[-1] + np.max(rp_out))
+        R_dense = np.logspace(np.log10(1e-4), np.log10(r_max), 500) / h
+        Sigma_dense = nfw.projected(Planck18, R_dense, M, a)
+
+        I_M = np.zeros((n_rs, len(rp_out)))
+
+        for j, rs in enumerate(rs_grid):
+            rs_phys = rs / h
+
+            r_min = max(rp_out[0] * 0.3 / h, 1e-5)
+            r_fmax = max(rp_out[-1], rs + rp_out[-1]) / h
+            r_fine = np.logspace(np.log10(r_min), np.log10(r_fmax), n_rfine)
+
+            rs2 = rs_phys ** 2
+            r2 = r_fine ** 2
+            d2 = rs2 + r2[:, None] + 2 * rs_phys * r_fine[:, None] * cos_phi[None, :]
+            d = np.sqrt(d2)
+
+            Sigma_phi = np.mean(
+                np.interp(d.ravel(), R_dense, Sigma_dense).reshape(d.shape),
+                axis=1,
+            )
+
+            rS = r_fine * Sigma_phi
+            dr = np.diff(r_fine)
+            I_cum = np.zeros(n_rfine)
+            I_cum[1:] = 0.5 * np.cumsum(dr * (rS[1:] + rS[:-1]))
+            Sigma_bar = 2.0 * I_cum / r_fine ** 2
+            Sigma_bar[0] = Sigma_phi[0]
+
+            ds_fine = (Sigma_bar - Sigma_phi) / 1e12
+            I_M[j] = P_rs[j] * np.interp(rp_out / h, r_fine, ds_fine)
+
+        result += dndlogM[i] * N_sat[i] * np.trapezoid(
+            I_M, rs_grid, axis=0) * dlogM
+
+    if n_bar == 0:
+        return rp_out, np.zeros(len(rp_out))
+    return rp_out, result / n_bar
