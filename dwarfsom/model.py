@@ -111,8 +111,10 @@ def DSigma_1h_sm_sub(
     I_cum = np.zeros_like(rS)
     dr = np.diff(r_fine)
     I_cum[1:] = 0.5 * np.cumsum(dr * (rS[1:] + rS[:-1]))
+    I_0 = 0.5 * r_fine[0]**2 * (Sigma_fine[0] + M0 / (4.0 * np.pi * r_s**2))
+    I_cum += I_0
     Sigma_bar = 2.0 * I_cum / r_fine**2
-    Sigma_bar[0] = Sigma_fine[0]
+    Sigma_bar[0] = Sigma_fine[0] + M0 / (4.0 * np.pi * r_s**2)
 
     ds_fine = (Sigma_bar - Sigma_fine) / 1e12
     return np.interp(rp_phys, r_fine, np.maximum(ds_fine, 0.0))
