@@ -7,6 +7,7 @@ from pyccl.halos import (
     MassDef200m,
 )
 from astropy.cosmology import Planck18 as astropy_Planck18
+from scipy.interpolate import interp1d
 
 h = astropy_Planck18.H0.value / 100
 _satellite_HOD_log10_M0 = 7.0
@@ -14,6 +15,9 @@ _satellite_HOD_log10_M1 = 13.3
 _satellite_HOD_alpha = 1.0
 
 _cache_host_dsigma = {}
+_cache_2h = {}
+_Omega_m = astropy_Planck18.Om0
+_rho_crit0 = 2.775e11 * h**2  # M_sun/(physical Mpc)^3
 
 Planck18 = ccl.Cosmology(
     Omega_c=(astropy_Planck18.Om0 - astropy_Planck18.Ob0),
@@ -28,6 +32,7 @@ Planck18 = ccl.Cosmology(
 
 def DSigma():
     pass
+
 
 def DSigma_1h_cm(
         rp: np.ndarray,
@@ -80,8 +85,28 @@ def DSigma_1h_sm_host(
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
-def DSigma_2h():
-    pass
+def DSigma_2h(
+        rp: np.ndarray,
+        log10_M: float,
+        z_lens: float,
+):
+    """Two-halo ESD from linear bias with Tinker 2005 scale dependence.
+
+    ξ_gm(r) = b(M) × η(r) × ξ_lin(r)
+
+    The projected surface density Σ(R) is obtained via Abel
+    integral, then ΔΣ_2h = Σ̄(<R) − Σ(R).
+
+    Args:
+        rp: Projected separations in Mpc/h.
+        log10_M: log10 of halo mass M_200m in M_sun.
+        z_lens: Lens redshift.
+    """
+    key = (z_lens, log10_M)
+    if key not in _cache_2h:
+        _cache_2h[key] = _precompute_2h(z_lens, log10_M)
+    rp_grid, ds_grid = _cache_2h[key]
+    return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
 def DSigma_NFW(
@@ -357,3 +382,66 @@ def _precompute_host_dsigma(z_lens, c, f_c):
     if n_bar == 0:
         return rp_out, np.zeros(len(rp_out))
     return rp_out, result / n_bar
+
+
+def _precompute_2h(z_lens, log10_M):
+    """Precompute the 2-halo ESD for a given (z_lens, M_h)."""
+    from pyccl.halos import HaloBiasTinker10
+
+    a = 1.0 / (1.0 + z_lens)
+    M = 10 ** log10_M
+
+    bias_model = HaloBiasTinker10(mass_def=MassDef200m)
+    b_h = bias_model(Planck18, M, a)
+    rho_m = _Omega_m * _rho_crit0 / a**3
+
+    # Linear matter correlation function
+    k = np.logspace(-4, 4, 2000)
+    P_lin = ccl.linear_matter_power(Planck18, k, a)
+    r_3d = np.logspace(-2, 2, 500)
+
+    kr = np.outer(k, r_3d)
+    integrand = k[:, None]**2 * P_lin[:, None] * np.sin(kr) / kr
+    xi_lin = np.trapezoid(integrand, k, axis=0) / (2 * np.pi**2)
+
+    # Tinker 2005 scale-dependent bias correction
+    eta = (1 + 1.17 * xi_lin)**1.49 / (1 + 0.69 * xi_lin)**2.09
+
+    # Galaxy-matter correlation
+    xi_gm = b_h * eta * xi_lin
+
+    xi_interp = interp1d(
+        np.log(r_3d), xi_gm, kind='linear',
+        bounds_error=False, fill_value=0.0,
+    )
+
+    # Abel projection Σ(R) via t-substitution (no singularity)
+    rp_out = np.logspace(-2, np.log10(30), 60)
+    rp_phys = rp_out / h
+
+    rp_fine = np.logspace(-4, np.log10(30), 150)
+    rp_fine_phys = rp_fine / h
+
+    t_max = 100.0
+    t_grid = np.logspace(-4, np.log10(t_max), 150)
+
+    Sigma_fine = np.zeros(len(rp_fine_phys))
+    for i, R in enumerate(rp_fine_phys):
+        r = np.sqrt(t_grid**2 + R**2)
+        mask = r <= r_3d[-1]
+        Sigma_fine[i] = 2 * rho_m * np.trapezoid(
+            xi_interp(np.log(r[mask])), t_grid[mask])
+
+    # Σ̄(<R) on fine grid
+    R_Sigma_fine = rp_fine_phys * Sigma_fine
+    I_cum = np.zeros_like(R_Sigma_fine)
+    dr = np.diff(rp_fine_phys)
+    I_cum[1:] = 0.5 * np.cumsum(dr * (R_Sigma_fine[1:] + R_Sigma_fine[:-1]))
+    Sigma_bar_fine = 2 * I_cum / rp_fine_phys**2
+    Sigma_bar_fine[0] = Sigma_fine[0]
+
+    ds_fine = np.maximum(
+        (Sigma_bar_fine - Sigma_fine) / 1e12, 0.0)
+    ds_2h = np.interp(rp_phys, rp_fine_phys, ds_fine)
+
+    return rp_out, ds_2h
