@@ -111,10 +111,14 @@ def DSigma_1h_sm_sub(
     I_cum = np.zeros_like(rS)
     dr = np.diff(r_fine)
     I_cum[1:] = 0.5 * np.cumsum(dr * (rS[1:] + rS[:-1]))
+    Sigma_bar_full = 2.0 * I_cum / r_fine**2
     I_0 = 0.5 * r_fine[0]**2 * (Sigma_fine[0] + M0 / (4.0 * np.pi * r_s**2))
-    I_cum += I_0
-    Sigma_bar = 2.0 * I_cum / r_fine**2
-    Sigma_bar[0] = Sigma_fine[0] + M0 / (4.0 * np.pi * r_s**2)
+    if r_fine[0] < 0.5 * r_s:
+        Sigma_bar = Sigma_bar_full + 2.0 * I_0 / r_fine**2
+        Sigma_bar[0] = Sigma_fine[0] + M0 / (4.0 * np.pi * r_s**2)
+    else:
+        Sigma_bar = Sigma_bar_full
+        Sigma_bar[0] = Sigma_fine[0]
 
     ds_fine = (Sigma_bar - Sigma_fine) / 1e12
     return np.interp(rp_phys, r_fine, np.maximum(ds_fine, 0.0))
@@ -444,7 +448,7 @@ def _precompute_host_dsigma(z_lens, c, f_c):
     dndlogM = hmf(Planck18, M_mid, a)
     n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
 
-    rp_out = np.logspace(-2, np.log10(30), 60)
+    rp_out = np.logspace(-2, np.log10(100), 60)
     n_rs = 25
     n_phi = 60
     n_rfine = 200
@@ -543,10 +547,10 @@ def _precompute_2h(z_lens, log10_M):
     )
 
     # Abel projection Σ(R) via t-substitution (no singularity)
-    rp_out = np.logspace(-2, np.log10(30), 60)
+    rp_out = np.logspace(-2, np.log10(100), 60)
     rp_phys = rp_out / h
 
-    rp_fine = np.logspace(-4, np.log10(30), 150)
+    rp_fine = np.logspace(-4, np.log10(100), 150)
     rp_fine_phys = rp_fine / h
 
     t_max = 100.0
