@@ -36,9 +36,10 @@ def DSigma(
         log10_M: float,
         f_c: float,
         frac_sat: float,
+        tau: float | None=None,
 ):
     ds_1h_cm = DSigma_1h_cm(rp, log10_M, z_lens, f_c=f_c)
-    ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=f_c)
+    ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=f_c, tau=tau)
     ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=f_c)
     ds_2h = DSigma_2h(rp, log10_M, z_lens)
     ds = (
@@ -76,7 +77,7 @@ def DSigma_1h_sm_sub(
         z_lens: Lens redshift.
         c: Concentration. Mutually exclusive with f_c.
         f_c: Duffy08 amplitude. Mutually exclusive with c.
-        tau: r_t / r_s (dimensionless truncation). Default: 4.0.
+        tau: r_t / r_s (dimensionless truncation). Default: 2.5.
     """
     if (c is None) == (f_c is None):
         raise ValueError("Provide exactly one of: c or f_c.")
@@ -94,7 +95,7 @@ def DSigma_1h_sm_sub(
     r_s = r_vir / conc_val
 
     if tau is None:
-        tau_val = 4.0  # default: r_t = 4 * r_s
+        tau_val = 2.5  # default: r_t = 2.5 * r_s
     else:
         tau_val = tau
 
