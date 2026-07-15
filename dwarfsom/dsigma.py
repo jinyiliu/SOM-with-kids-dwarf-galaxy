@@ -101,7 +101,7 @@ class DSigmaData:
             [df.filter(like="dsigma_rand_cross_randcat").values.T],
         ))
         return cls(
-            mean_rp=df["mean_rp_hMpc"].values,
+            mean_rp=df["mean_rp_Mpc_h_inv"].values,
             mean_rp_arcmin=df["mean_rp_arcmin"].values,
             npairs=df["npairs"].values,
             dsigma_tangential=df["dsigma_tangential"].values,
@@ -162,8 +162,8 @@ class DSigma:
             npatch=npatch,
         )
         self.config = {
-            "min_sep": self.hMpc2degree(self.min_rp),
-            "max_sep": self.hMpc2degree(self.max_rp),
+            "min_sep": self.Mpc_h_inv2degree(self.min_rp),
+            "max_sep": self.Mpc_h_inv2degree(self.max_rp),
             "nbins": self.n_rp_bins,
             "sep_units": "degree",
             "var_method": var_method,
@@ -176,7 +176,7 @@ class DSigma:
         self.dsigma_tangential = ng.xi * self._effective_sigma_crit
         self.dsigma_cross = ng.xi_im * self._effective_sigma_crit
         self.cov = ng.cov * self._effective_sigma_crit**2
-        self.mean_rp = self.degree2hMpc(ng.meanr)
+        self.mean_rp = self.degree2Mpc_h_inv(ng.meanr)
         self.mean_rp_arcmin = ng.meanr * 180 # degree to arcmin
 
         if self.randoms is not None:
@@ -245,7 +245,7 @@ class DSigma:
     ):
         assert fname.endswith(".csv")
         df = pd.DataFrame({
-            "mean_rp_hMpc": self.mean_rp,
+            "mean_rp_Mpc_h_inv": self.mean_rp,
             "mean_rp_arcmin": self.mean_rp_arcmin,
             "npairs": self._weighted_npairs,
             "dsigma_tangential": self.dsigma_tangential,
@@ -268,21 +268,19 @@ class DSigma:
             self.cov,
         )
 
-
-    def degree2hMpc(self, degree: np.ndarray | float):
-        DA = np.average( # angular dimeter distance in Mpc/h per radian
-            a=self.cosmo.angular_diameter_distance(self.lens.dndz[0]).value,
+    def degree2Mpc_h_inv(self, degree: np.ndarray | float):
+        DM = np.average( # comoving transverse distance in Mpc/h per radian
+            a=self.cosmo.comoving_transverse_distance(self.lens.dndz[0]).value,
             weights=self.lens.dndz[1],
         ) * self.cosmo.h
-        return np.deg2rad(degree) * DA
+        return np.deg2rad(degree) * DM
 
-
-    def hMpc2degree(self, hMpc: np.ndarray | float):
-        DA = np.average( # angular dimeter distance in Mpc/h per radian
-            a=self.cosmo.angular_diameter_distance(self.lens.dndz[0]).value,
+    def Mpc_h_inv2degree(self, Mpc_h_inv: np.ndarray | float):
+        DM = np.average( # comoving transverse distance in Mpc/h per radian
+            a=self.cosmo.comoving_transverse_distance(self.lens.dndz[0]).value,
             weights=self.lens.dndz[1],
         ) * self.cosmo.h
-        return np.rad2deg(hMpc / DA)
+        return np.rad2deg(Mpc_h_inv / DM)
 
 
 
