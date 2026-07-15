@@ -451,15 +451,18 @@ def _precompute_host_dsigma(z_lens, c, f_c):
     dndlogM = hmf(Planck18, M_mid, a)
     n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
 
-    rp_out = np.logspace(-2, np.log10(100), 60)
+    if n_bar == 0:
+        rp_out = np.logspace(-5, 2, 200)
+        return rp_out, np.zeros(len(rp_out))
+
+    rp_out = np.logspace(-5, 2, 200)
     n_rs = 25
     n_phi = 60
-    n_rfine = 200
 
     phi = np.linspace(0, 2 * np.pi, n_phi)
     cos_phi = np.cos(phi)
 
-    result = np.zeros(len(rp_out))
+    result_Sigma = np.zeros(len(rp_out))
 
     for i, lm in enumerate(log10_M_mid):
         if N_sat[i] == 0:
@@ -481,41 +484,44 @@ def _precompute_host_dsigma(z_lens, c, f_c):
         R_dense = np.logspace(np.log10(1e-4), np.log10(r_max), 500) / h
         Sigma_dense = nfw.projected(Planck18, R_dense, M, a)
 
-        I_M = np.zeros((n_rs, len(rp_out)))
+        Sigma_rs = np.zeros((n_rs, len(rp_out)))
 
         for j, rs in enumerate(rs_grid):
             rs_phys = rs / h
-
-            r_min = max(rp_out[0] * 0.3 / h, 1e-5)
-            r_fmax = max(rp_out[-1], rs + rp_out[-1]) / h
-            r_fine = np.logspace(np.log10(r_min), np.log10(r_fmax), n_rfine)
+            rp_phys = rp_out / h
 
             rs2 = rs_phys ** 2
-            r2 = r_fine ** 2
-            d2 = rs2 + r2[:, None] + 2 * rs_phys * r_fine[:, None] * cos_phi[None, :]
+            r2 = rp_phys[:, None] ** 2
+            d2 = rs2 + r2 + 2 * rs_phys * rp_phys[:, None] * cos_phi[None, :]
             d = np.sqrt(d2)
 
-            Sigma_phi = np.mean(
+            Sigma_phi_rp = np.mean(
                 np.interp(d.ravel(), R_dense, Sigma_dense).reshape(d.shape),
                 axis=1,
             )
+            Sigma_rs[j] = P_rs[j] * Sigma_phi_rp
 
-            rS = r_fine * Sigma_phi
-            dr = np.diff(r_fine)
-            I_cum = np.zeros(n_rfine)
-            I_cum[1:] = 0.5 * np.cumsum(dr * (rS[1:] + rS[:-1]))
-            Sigma_bar = 2.0 * I_cum / r_fine ** 2
-            Sigma_bar[0] = Sigma_phi[0]
+        result_Sigma += dndlogM[i] * N_sat[i] * np.trapezoid(
+            Sigma_rs, rs_grid, axis=0) * dlogM
 
-            ds_fine = (Sigma_bar - Sigma_phi) / 1e12
-            I_M[j] = P_rs[j] * np.interp(rp_out / h, r_fine, ds_fine)
+    result_Sigma /= n_bar
 
-        result += dndlogM[i] * N_sat[i] * np.trapezoid(
-            I_M, rs_grid, axis=0) * dlogM
+    rp_fine = np.logspace(-5, 2, 200)
+    Sigma_fine = np.interp(
+        np.log(rp_fine), np.log(rp_out), result_Sigma)
 
-    if n_bar == 0:
-        return rp_out, np.zeros(len(rp_out))
-    return rp_out, result / n_bar
+    rp_fine_phys = rp_fine / h
+    R_Sigma = rp_fine_phys * Sigma_fine
+    I_cum = np.zeros_like(R_Sigma)
+    dr = np.diff(rp_fine_phys)
+    I_cum[1:] = 0.5 * np.cumsum(dr * (R_Sigma[1:] + R_Sigma[:-1]))
+    Sigma_bar = 2.0 * I_cum / rp_fine_phys ** 2
+    Sigma_bar[0] = Sigma_fine[0]
+
+    ds_fine = np.maximum((Sigma_bar - Sigma_fine) / 1e12, 0.0)
+    rp_out_phys = rp_out / h
+    ds_pop = np.interp(rp_out_phys, rp_fine_phys, ds_fine)
+    return rp_out, ds_pop
 
 
 def _precompute_2h(z_lens, log10_M):
