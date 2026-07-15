@@ -72,19 +72,20 @@ def DSigma_1h_sm_sub(
     """BMO smoothly-truncated NFW subhalo ESD (Baltz et al. 2009).
 
     Args:
-        rp: Projected separations in Mpc/h.
+        rp: Projected separations in comoving Mpc/h.
         log10_M: log10 of halo mass M_200m in M_sun.
         z_lens: Lens redshift.
         c: Concentration. Mutually exclusive with f_c.
         f_c: Duffy08 amplitude. Mutually exclusive with c.
-        tau: r_t / r_s (dimensionless truncation). Default: 2.5.
+        tau: r_t / r_s (dimensionless truncation parameter). Default: 2.5.
     """
     if (c is None) == (f_c is None):
         raise ValueError("Provide exactly one of: c or f_c.")
 
     a = 1.0 / (1.0 + z_lens)
     M = 10.0 ** log10_M
-    r_vir = MassDef200m.get_radius(Planck18, M, a) / a  # in comoving physical Mpc
+    r_vir = MassDef200m.get_radius(Planck18, M, a)  # physical Mpc
+    r_vir = r_vir / a   # comoving Mpc
 
     if c is not None:
         conc_val = c
@@ -92,30 +93,35 @@ def DSigma_1h_sm_sub(
         conc = ConcentrationDuffy08(fc_bar=f_c, mass_def=MassDef200m)
         conc_val = float(conc(Planck18, M, a))
 
-    r_s = r_vir / conc_val
+    r_s = r_vir / conc_val  # comoving Mpc
 
     if tau is None:
         tau_val = 2.5  # default: r_t = 2.5 * r_s
     else:
         tau_val = tau
 
+    # M0 = M / f(c) to convert M_200m to M0
     M0 = M / (np.log(1 + conc_val) - conc_val / (1 + conc_val))
 
-    rp_phys = np.atleast_1d(np.asarray(rp, dtype=float)) / h
+    rp_Mpc = np.atleast_1d(np.asarray(rp, dtype=float)) / h
+    # comoving Mpc/h -> comoving Mpc
 
-    r_min = max(np.min(rp_phys) * 0.3, 1e-5)
-    r_max = np.max(rp_phys) * 1.5
+    r_min = max(np.min(rp_Mpc) * 0.3, 1e-5)
+    r_max = np.max(rp_Mpc) * 1.5
     r_fine = np.logspace(np.log10(r_min), np.log10(r_max), 200)
 
-    Sigma_fine = _Sigma_BMO(r_fine, M0, r_s, tau_val)
+    Sigma_fine = _Sigma_BMO(r_fine, M0, r_s, tau_val)   # M_sun / (comoving Mpc)^2
     rS = r_fine * Sigma_fine
     I_cum = np.zeros_like(rS)
     dr = np.diff(r_fine)
     I_cum[1:] = 0.5 * np.cumsum(dr * (rS[1:] + rS[:-1]))
 
+    # Compute Σ̄(<r_fine[0])
     r_sub = np.logspace(
-        np.log10(max(r_s * 1e-3, 1e-5)),
-        np.log10(r_fine[0]), 100)
+        start=np.log10(max(r_s * 1e-3, 1e-5)),
+        stop=np.log10(r_fine[0]),
+        num=100,
+    )
     Sigma_sub = _Sigma_BMO(r_sub, M0, r_s, tau_val)
     I_0 = np.trapezoid(r_sub * Sigma_sub, r_sub)
 
@@ -123,8 +129,8 @@ def DSigma_1h_sm_sub(
     Sigma_bar = 2.0 * I_cum / r_fine**2
     Sigma_bar[0] = 2.0 * I_0 / r_fine[0]**2
 
-    ds_fine = (Sigma_bar - Sigma_fine) / 1e12
-    return np.interp(rp_phys, r_fine, np.maximum(ds_fine, 0.0))
+    ds_fine = (Sigma_bar - Sigma_fine) / 1.e12 / h
+    return np.interp(rp_Mpc, r_fine, np.maximum(ds_fine, 0.0))
 
 
 def DSigma_1h_sm_host(
@@ -341,9 +347,9 @@ def _Sigma_BMO(R: np.ndarray, M0: float, rs: float, tau: float):
     """Equation A.7 in Baltz et al. (2009)
 
     Args:
-        R: Projected radii in physical Mpc.
+        R: Projected radii in comoving Mpc.
         M0: Profile normalisation mass in M_sun.
-        r_s: Scale radius (same units as R).
+        r_s: Scale radius in comoving Mpc.
         tau: tau = r_t / r_s (truncation parameter).
     """
     x = np.atleast_1d(np.asarray(R / rs, dtype=float))
@@ -365,7 +371,7 @@ def _Sigma_BMO(R: np.ndarray, M0: float, rs: float, tau: float):
     term3 = -np.pi / sqrt_tau2_plus_x2
     term4 = (tau2 - 1.0) / (tau * sqrt_tau2_plus_x2) * Lx
 
-    return pref * (term1 + term2 + term3 + term4)
+    return pref * (term1 + term2 + term3 + term4)   # M_sun / (comoving Mpc)^2
 
 
 def _satellite_HOD(
