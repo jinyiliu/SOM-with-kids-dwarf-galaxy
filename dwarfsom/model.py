@@ -416,16 +416,24 @@ def _satellite_radial_distribution(
 
     Satellites trace the host NFW projected mass:
     P(r_p_sat | M) is propotional to 2π rp_sat x Σ_NFW(rp_sat | M)
+
+    Args:
+        rp_sat: Satellite distance to host halo centre in comoving Mpc.
+        log10_M: log10 of host halo mass in M_sun.
+        z_lens: Lens redshift.
+        c:
+        f_c:
     """
     nfw, a, M = _get_nfw_profile(
         log10_M, z_lens, c, f_c, truncated=False, analytic=True)
 
-    r_phys = np.atleast_1d(np.asarray(rp_sat, dtype=float)) / h # Mpc/h -> physical Mpc
-    Sigma = nfw.projected(Planck18, r_phys, M, a)
-    P_phys = 2 * np.pi * r_phys * Sigma
-    if len(r_phys) > 1:
-        P_phys = P_phys / np.trapezoid(P_phys, r_phys)
-    return P_phys / h
+    r_Mpc = np.atleast_1d(np.asarray(rp_sat, dtype=float))  # comoving Mpc
+
+    Sigma = nfw.projected(Planck18, r_Mpc, M, a)
+    P = 2 * np.pi * r_Mpc * Sigma
+    if len(r_Mpc) > 1:
+        P = P / np.trapezoid(P, r_Mpc)
+    return P
 
 
 def _precompute_host_dsigma(z_lens, c, f_c):
@@ -451,75 +459,62 @@ def _precompute_host_dsigma(z_lens, c, f_c):
     n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
 
     if n_bar == 0:
-        rp_out = np.logspace(-5, 2, 200)
-        return rp_out, np.zeros(len(rp_out))
+        rp_out_Mpc = np.logspace(-5, 2, 200)
+        return rp_out_Mpc, np.zeros(len(rp_out_Mpc))
 
-    rp_out = np.logspace(-5, 2, 200)
+    rp_out_Mpc = np.logspace(-5, 2, 200)    # comoving Mpc
     n_rs = 25
-    n_phi = 60
 
-    phi = np.linspace(0, 2 * np.pi, n_phi)
-    cos_phi = np.cos(phi)
+    result_Sigma = np.zeros(len(rp_out_Mpc))
 
-    result_Sigma = np.zeros(len(rp_out))
-
+    # Loop over halo mass
     for i, lm in enumerate(log10_M_mid):
         if N_sat[i] == 0:
             continue
 
-        r_vir = MassDef200m.get_radius(Planck18, M_mid[i], a) / h
+        r_vir = MassDef200m.get_radius(Planck18, M_mid[i], a)   # physical Mpc
+        r_vir = r_vir / a   # comoving Mpc
+
         rs_grid = np.logspace(
-            np.log10(0.001), np.log10(0.95 * r_vir), n_rs,
-        )
+            -3, np.log10(0.95 * r_vir), n_rs,
+        )   # comoving Mpc
         P_rs = _satellite_radial_distribution(
             rs_grid, lm, z_lens, c=c, f_c=f_c,
         )
 
-        nfw, _, M = _get_nfw_profile(
-            lm, z_lens, c, f_c, truncated=False, analytic=True,
-        )
-
-        r_max = max(np.max(rp_out), rs_grid[-1] + np.max(rp_out))
-        R_dense = np.logspace(np.log10(1e-4), np.log10(r_max), 500) / h
-        Sigma_dense = nfw.projected(Planck18, R_dense, M, a)
-
-        Sigma_rs = np.zeros((n_rs, len(rp_out)))
-
+        Sigma_rs = np.zeros((n_rs, len(rp_out_Mpc)))
         for j, rs in enumerate(rs_grid):
-            rs_phys = rs / h
-            rp_phys = rp_out / h
-
-            rs2 = rs_phys ** 2
-            r2 = rp_phys[:, None] ** 2
-            d2 = rs2 + r2 + 2 * rs_phys * rp_phys[:, None] * cos_phi[None, :]
-            d = np.sqrt(d2)
-
-            Sigma_phi_rp = np.mean(
-                np.interp(d.ravel(), R_dense, Sigma_dense).reshape(d.shape),
-                axis=1,
-            )
-            Sigma_rs[j] = P_rs[j] * Sigma_phi_rp
+            Sigma_rs[j] = P_rs[j] * _Sigma_NFW_offset(
+                rp=rp_out_Mpc * h,  # comoving Mpc/h
+                rp_sat=rs * h,  # comoving Mpc/h
+                log10_M=lm,
+                z_lens=z_lens,
+                c=c,
+                f_c=f_c,
+            )   # h M_sun / (comoving pc)^2
 
         result_Sigma += dndlogM[i] * N_sat[i] * np.trapezoid(
             Sigma_rs, rs_grid, axis=0) * dlogM
 
     result_Sigma /= n_bar
 
-    rp_fine = np.logspace(-5, 2, 200)
-    Sigma_fine = np.interp(
-        np.log(rp_fine), np.log(rp_out), result_Sigma)
+    rp_fine_Mpc = np.logspace(-5, 2, 200)  # comoving Mpc
+    Sigma_fine = np.interp(  # h M_sun / (comoving pc)^2
+        np.log(rp_fine_Mpc), np.log(rp_out_Mpc), result_Sigma)
 
-    rp_fine_phys = rp_fine / h
-    R_Sigma = rp_fine_phys * Sigma_fine
+    rp_fine = rp_fine_Mpc * h  # comoving Mpc/h
+
+    R_Sigma = rp_fine * Sigma_fine
     I_cum = np.zeros_like(R_Sigma)
-    dr = np.diff(rp_fine_phys)
+    dr = np.diff(rp_fine)
     I_cum[1:] = 0.5 * np.cumsum(dr * (R_Sigma[1:] + R_Sigma[:-1]))
-    Sigma_bar = 2.0 * I_cum / rp_fine_phys ** 2
+    Sigma_bar = 2.0 * I_cum / rp_fine ** 2
     Sigma_bar[0] = Sigma_fine[0]
 
-    ds_fine = np.maximum((Sigma_bar - Sigma_fine) / 1e12, 0.0)
-    rp_out_phys = rp_out / h
-    ds_pop = np.interp(rp_out_phys, rp_fine_phys, ds_fine)
+    ds_fine = np.maximum((Sigma_bar - Sigma_fine), 0.0)
+
+    rp_out = rp_out_Mpc * h  # comoving Mpc/h
+    ds_pop = np.interp(rp_out, rp_fine, ds_fine)
     return rp_out, ds_pop
 
 
