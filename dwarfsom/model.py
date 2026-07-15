@@ -112,14 +112,16 @@ def DSigma_1h_sm_sub(
     I_cum = np.zeros_like(rS)
     dr = np.diff(r_fine)
     I_cum[1:] = 0.5 * np.cumsum(dr * (rS[1:] + rS[:-1]))
-    Sigma_bar_full = 2.0 * I_cum / r_fine**2
-    I_0 = 0.5 * r_fine[0]**2 * (Sigma_fine[0] + M0 / (4.0 * np.pi * r_s**2))
-    if r_fine[0] < 0.5 * r_s:
-        Sigma_bar = Sigma_bar_full + 2.0 * I_0 / r_fine**2
-        Sigma_bar[0] = Sigma_fine[0] + M0 / (4.0 * np.pi * r_s**2)
-    else:
-        Sigma_bar = Sigma_bar_full
-        Sigma_bar[0] = Sigma_fine[0]
+
+    r_sub = np.logspace(
+        np.log10(max(r_s * 1e-3, 1e-5)),
+        np.log10(r_fine[0]), 100)
+    Sigma_sub = _Sigma_BMO(r_sub, M0, r_s, tau_val)
+    I_0 = np.trapezoid(r_sub * Sigma_sub, r_sub)
+
+    I_cum += I_0
+    Sigma_bar = 2.0 * I_cum / r_fine**2
+    Sigma_bar[0] = 2.0 * I_0 / r_fine[0]**2
 
     ds_fine = (Sigma_bar - Sigma_fine) / 1e12
     return np.interp(rp_phys, r_fine, np.maximum(ds_fine, 0.0))
