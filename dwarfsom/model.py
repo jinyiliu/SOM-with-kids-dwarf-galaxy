@@ -192,7 +192,7 @@ def DSigma_NFW(
     """Analytical NFW excess surface density profile.
 
     Args:
-        rp: Projected separations in Mpc/h.
+        rp: Projected separations in comoving Mpc/h.
         log10_M: log10 of halo mass M_200m in M_sun.
         z_lens: Lens redshift.
         c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
@@ -204,11 +204,12 @@ def DSigma_NFW(
     nfw, a, M = _get_nfw_profile(
         log10_M, z_lens, c, f_c, truncated, analytic)
 
-    rp_Mpc = rp / h  # Mpc/h -> physical Mpc
-    Sigma = nfw.projected(Planck18, rp_Mpc, M, a)
+    rp_Mpc = rp / h # comoving Mpc/h -> transverse comoving Mpc
+    Sigma = nfw.projected(Planck18, rp_Mpc, M, a)   # M_sun / (comoving Mpc)^2
     Sigma_bar = nfw.cumul2d(Planck18, rp_Mpc, M, a)
+    ret = (Sigma_bar - Sigma) / 1.e12 / h   # h M_sun / (comoving pc)^2
 
-    return (Sigma_bar - Sigma) / 1.e12
+    return ret
 
 
 def DSigma_NFW_offset(
