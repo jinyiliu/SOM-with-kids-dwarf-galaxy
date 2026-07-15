@@ -212,24 +212,24 @@ def DSigma_NFW(
     return ret
 
 
-def DSigma_NFW_offset(
+def _Sigma_NFW_offset(
         rp: np.ndarray,
+        rp_sat: float,
         log10_M: float,
         z_lens: float,
-        rp_sat: float,
         c: float | None=None,
         f_c: float | None=None,
 ):
-    """Off-centre NFW excess surface density.
+    """Off-centre NFW surface density.
 
-    DeltaSigma at projected separation `rp` from a satellite
+    Sigma at projected separation `rp` from a satellite
     offset by `rp_sat` from the host NFW centre.
 
     Uses azimuthal averaging over phi, then cumulative radial
     integration for the mean enclosed surface density.
 
     Args:
-        rp: Projected separations in Mpc/h.
+        rp: Projected separations in comoving Mpc/h.
         log10_M: log10 of host halo mass M_200m in M_sun.
         z_lens: Lens redshift.
         rp_sat: Projected offset of satellite from host centre in Mpc/h.
@@ -244,7 +244,7 @@ def DSigma_NFW_offset(
     nfw, a, M = _get_nfw_profile(
         log10_M, z_lens, c, f_c, truncated=False, analytic=True)
 
-    rp = np.atleast_1d(rp) / h
+    rp = np.atleast_1d(rp) / h  # comoving Mpc/h -> transverse comoving Mpc
     rp_sat = rp_sat / h
 
     _n_fine = max(300, 4 * len(rp))
@@ -262,17 +262,9 @@ def DSigma_NFW_offset(
             a,
         ))
         for r in r_fine
-    ])
-
-    rSigma = r_fine * Sigma_fine
-    I_cum = np.zeros_like(rSigma)
-    dr = r_fine[1:] - r_fine[:-1]
-    I_cum[1:] = 0.5 * np.cumsum(dr * (rSigma[1:] + rSigma[:-1]))
-    Sigma_bar = 2.0 * I_cum / r_fine**2
-    Sigma_bar[0] = Sigma_fine[0]
-
-    dSigma_fine = (Sigma_bar - Sigma_fine) / 1e12
-    return np.interp(rp, r_fine, dSigma_fine)
+    ])  # M_sun / (comoving Mpc)^2
+    Sigma_fine = Sigma_fine / 1.e12 / h # h M_sun / (comoving pc)^2
+    return np.interp(rp, r_fine, Sigma_fine)
 
 
 def _get_nfw_profile(
