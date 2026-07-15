@@ -123,8 +123,8 @@ class DSigma:
             randoms: list[Random] | None=None,
             cosmo=Planck18,
             n_rp_bins: int=15,
-            min_rp: float=0.02, # unit h^-1 Mpc
-            max_rp: float=20.0, # unit h^-1 Mpc
+            min_rp: float=0.02, # comoving Mpc/h
+            max_rp: float=20.0, # comoving Mpc/h
             patch_centers: str | None=None,
             npatch: int | None=None,
             var_method: str="shot",
