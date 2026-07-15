@@ -146,14 +146,14 @@ class DSigma:
 
         self._effective_sigma_crit = self.effective_critical_surface_density()
 
-        self.lens_Catalog = Catalog(
+        self._lens_Catalog = Catalog(
             ra=lens.ra, ra_units="degrees",
             dec=lens.dec, dec_units="degrees",
             w=self.lens.w,
             patch_centers=patch_centers,
             npatch=npatch,
         )
-        self.source_Catalog = Catalog(
+        self._source_Catalog = Catalog(
             ra=self.source.ra, ra_units="degrees",
             dec=self.source.dec, dec_units="degrees",
             g1=self.source.e1, g2=self.source.e2,
@@ -171,7 +171,7 @@ class DSigma:
         }
 
         ng = NGCorrelation(self.config)
-        ng.process(self.lens_Catalog, self.source_Catalog)
+        ng.process(self._lens_Catalog, self._source_Catalog)
 
         self.dsigma_tangential = ng.xi * self._effective_sigma_crit
         self.dsigma_cross = ng.xi_im * self._effective_sigma_crit
@@ -211,7 +211,7 @@ class DSigma:
                 patch_centers=self.patch_centers,
                 npatch=self.npatch,
             )
-            ng_rand.process(random_Catalog, self.source_Catalog)
+            ng_rand.process(random_Catalog, self._source_Catalog)
             self._boost_array[i] = (
                     (self._weighted_npairs / len(self.lens.ra)) /
                     (ng_rand.weight / len(self.randoms[i].ra))
