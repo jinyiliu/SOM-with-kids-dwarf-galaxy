@@ -156,8 +156,7 @@ def DSigma_1h_sm_host(
     """
     key = (z_lens, c, f_c)
     if key not in _cache_host_dsigma:
-        _cache_host_dsigma[key] = _precompute_host_dsigma(
-            z_lens, c, f_c)
+        _cache_host_dsigma[key] = _precompute_host_dsigma(z_lens, c, f_c)
     rp_grid, ds_grid = _cache_host_dsigma[key]
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
@@ -258,7 +257,7 @@ def _Sigma_NFW_offset(
     _r_max = max(np.max(rp) * 1.5, rp_sat + np.max(rp))
     r_fine = np.logspace(np.log10(_r_min), np.log10(_r_max), _n_fine)
 
-    phi = np.linspace(0, 2 * np.pi, 80)
+    phi = np.linspace(0, 2 * np.pi, 160)
 
     Sigma_fine = np.array([
         np.mean(nfw.projected(
@@ -463,7 +462,7 @@ def _precompute_host_dsigma(z_lens, c, f_c):
         return rp_out_Mpc, np.zeros(len(rp_out_Mpc))
 
     rp_out_Mpc = np.logspace(-5, 2, 200)    # comoving Mpc
-    n_rs = 25
+    n_rs = 70
 
     result_Sigma = np.zeros(len(rp_out_Mpc))
 
@@ -498,7 +497,7 @@ def _precompute_host_dsigma(z_lens, c, f_c):
 
     result_Sigma /= n_bar
 
-    rp_fine_Mpc = np.logspace(-5, 2, 200)  # comoving Mpc
+    rp_fine_Mpc = np.logspace(-5, 2, 500)  # comoving Mpc
     Sigma_fine = np.interp(  # h M_sun / (comoving pc)^2
         np.log(rp_fine_Mpc), np.log(rp_out_Mpc), result_Sigma)
 
