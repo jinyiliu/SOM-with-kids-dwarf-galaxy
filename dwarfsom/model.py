@@ -57,19 +57,29 @@ def DSigmaModel(
         frac_sat: float,
         log10_M_star: float,
         tau: float | None=None,
+        return_components: bool=False,
 ):
     ds_1h_cm = DSigma_1h_cm(rp, log10_M, z_lens, f_c=f_c)
     ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=1., tau=tau)
     ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1.)
     ds_2h = DSigma_2h(rp, log10_M, z_lens)
     ds_star = DSigma_star(rp, log10_M_star)
-    ds = (
+    ds_total = (
             ds_star +
             (1 - frac_sat) * ds_1h_cm +
             frac_sat * (ds_1h_sm_sub + ds_1h_sm_host) +
             ds_2h
     )
-    return ds
+    if return_components:
+        return ds_total, {
+            "star": ds_star,
+            "1h_cm": (1 - frac_sat) * ds_1h_cm,
+            "1h_sm_sub": frac_sat * ds_1h_sm_sub,
+            "1h_sm_host": frac_sat * ds_1h_sm_host,
+            "2h": ds_2h,
+            "total": ds_total,
+        }
+    return ds_total
 
 
 def DSigma_1h_cm(
