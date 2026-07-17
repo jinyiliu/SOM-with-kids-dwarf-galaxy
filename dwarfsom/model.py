@@ -1,3 +1,5 @@
+import os
+import pickle as pk
 import numpy as np
 import pyccl as ccl
 from pyccl.halos import (
@@ -16,10 +18,18 @@ _satellite_HOD_log10_M0 = 7.0
 _satellite_HOD_log10_M1 = 13.3
 _satellite_HOD_alpha = 1.0
 
-_cache_host_dsigma = {}
-_cache_2h = {}
-_Omega_m = astropy_Planck18.Om0
+_cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 
+if os.path.exists(
+    os.path.join(_cache_dir, "_cache_host_dsigma.pk")
+):
+    with open(os.path.join(_cache_dir, "_cache_host_dsigma.pk"), "rb") as f:
+        _cache_host_dsigma = pk.load(f)
+else:
+    _cache_host_dsigma = {}
+
+
+_Omega_m = astropy_Planck18.Om0
 _H0_100 = (100 * u.km / u.s / u.Mpc).to(u.s**-1)
 _rho_crit0 = (
     3. * _H0_100**2 / (
@@ -39,7 +49,7 @@ Planck18 = ccl.Cosmology(
 )
 
 
-def DSigma(
+def DSigmaModel(
         rp: np.ndarray,
         z_lens: float,
         log10_M: float,
@@ -48,8 +58,8 @@ def DSigma(
         tau: float | None=None,
 ):
     ds_1h_cm = DSigma_1h_cm(rp, log10_M, z_lens, f_c=f_c)
-    ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=f_c, tau=tau)
-    ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=f_c)
+    ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=1., tau=tau)
+    ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1.)
     ds_2h = DSigma_2h(rp, log10_M, z_lens)
     ds = (
             (1 - frac_sat) * ds_1h_cm +
@@ -165,7 +175,7 @@ def DSigma_1h_sm_host(
     """
     key = (z_lens, c, f_c)
     if key not in _cache_host_dsigma:
-        _cache_host_dsigma[key] = _precompute_host_dsigma(z_lens, c, f_c)
+        _cache_host_dsigma[key] = precompute_host_dsigma(z_lens, c, f_c)
     rp_grid, ds_grid = _cache_host_dsigma[key]
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
@@ -187,10 +197,7 @@ def DSigma_2h(
         log10_M: log10 of halo mass M_200m in M_sun.
         z_lens: Lens redshift.
     """
-    key = (z_lens, log10_M)
-    if key not in _cache_2h:
-        _cache_2h[key] = _precompute_2h(z_lens, log10_M)
-    rp_grid, ds_grid = _cache_2h[key]
+    rp_grid, ds_grid = precompute_2h(z_lens, log10_M)
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
@@ -266,7 +273,8 @@ def _Sigma_NFW_offset(
     _r_max = max(np.max(rp) * 1.5, rp_sat + np.max(rp))
     r_fine = np.logspace(np.log10(_r_min), np.log10(_r_max), _n_fine)
 
-    phi = np.linspace(0, 2 * np.pi, 160)
+    n_phi = 160
+    phi = np.linspace(0, 2 * np.pi, n_phi)
 
     Sigma_fine = np.array([
         np.mean(nfw.projected(
@@ -444,7 +452,7 @@ def _satellite_radial_distribution(
     return P
 
 
-def _precompute_host_dsigma(z_lens, c, f_c):
+def precompute_host_dsigma(z_lens, c, f_c):
     """Precompute the host halo ESD contribution for given z_lens."""
     from pyccl.halos import MassFuncTinker08
 
@@ -526,7 +534,7 @@ def _precompute_host_dsigma(z_lens, c, f_c):
     return rp_out, ds_pop
 
 
-def _precompute_2h(z_lens, log10_M):
+def precompute_2h(z_lens, log10_M):
     """Precompute the 2-halo ESD for a given (z_lens, log10_M)."""
     from pyccl.halos import HaloBiasTinker10
 
