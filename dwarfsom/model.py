@@ -55,13 +55,16 @@ def DSigmaModel(
         log10_M: float,
         f_c: float,
         frac_sat: float,
+        log10_M_star: float,
         tau: float | None=None,
 ):
     ds_1h_cm = DSigma_1h_cm(rp, log10_M, z_lens, f_c=f_c)
     ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=1., tau=tau)
     ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1.)
     ds_2h = DSigma_2h(rp, log10_M, z_lens)
+    ds_star = DSigma_star(rp, log10_M_star)
     ds = (
+            ds_star +
             (1 - frac_sat) * ds_1h_cm +
             frac_sat * (ds_1h_sm_sub + ds_1h_sm_host) +
             ds_2h
@@ -78,6 +81,19 @@ def DSigma_1h_cm(
 ):
     return DSigma_NFW(
         rp, log10_M, z_lens, c, f_c, truncated=False, analytic=True)
+
+
+def DSigma_star(
+        rp: np.ndarray,
+        log10_M_star: float,
+):
+    """Stellar point mass excess surface density.
+
+    ΔΣ_star(R) = M_star / (π R²)
+    """
+    M_star = 10.0 ** log10_M_star
+    rp_pc = np.atleast_1d(np.asarray(rp, dtype=float)) * 1.e6 / h  # comoving pc
+    return M_star / (np.pi * rp_pc ** 2) / h   # h M_sun / (comoving pc)^2
 
 
 def DSigma_1h_sm_sub(
