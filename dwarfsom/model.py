@@ -626,3 +626,16 @@ def precompute_2h(z_lens, log10_M):
     ds_2h = np.interp(rp_Mpc, rp_fine_Mpc, ds_fine)  # h M_sun / (comoving pc)^2
 
     return rp_out, ds_2h
+
+
+def _c_DM14(M, z_lens):
+    """Dutton & Macciò (2014) concentration-mass relation.
+
+    Args:
+        M: Halo mass M_200c in M_sun.
+        z_lens: Lens redshift.
+    """
+    a = lambda z: 0.520 + (0.905 - 0.520) * np.exp(-0.617 * z**1.21)
+    b = lambda z: -0.101 + 0.026 * z
+    log10_c = a(z_lens) + b(z_lens) * np.log10(M * h / 1.e12)
+    return 10**log10_c
