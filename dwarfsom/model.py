@@ -21,12 +21,12 @@ _satellite_HOD_alpha = 1.0
 _cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 
 if os.path.exists(
-    os.path.join(_cache_dir, "_cache_host_dsigma.pk")
+    os.path.join(_cache_dir, "_cache_host_terms.pk")
 ):
-    with open(os.path.join(_cache_dir, "_cache_host_dsigma.pk"), "rb") as f:
-        _cache_host_dsigma = pk.load(f)
+    with open(os.path.join(_cache_dir, "_cache_host_terms.pk"), "rb") as f:
+        _cache_host_terms = pk.load(f)
 else:
-    _cache_host_dsigma = {}
+    _cache_host_terms = {}
 
 
 _Omega_m = astropy_Planck18.Om0
@@ -199,10 +199,7 @@ def DSigma_1h_sm_host(
         f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
             exclusive with c.
     """
-    key = (z_lens, c, f_c)
-    if key not in _cache_host_dsigma:
-        _cache_host_dsigma[key] = precompute_host_dsigma(z_lens, c, f_c)
-    rp_grid, ds_grid = _cache_host_dsigma[key]
+    rp_grid, ds_grid = compute_host_dsigma(z_lens, c, f_c)
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
@@ -478,17 +475,22 @@ def _satellite_radial_distribution(
     return P
 
 
-def precompute_host_dsigma(z_lens, c, f_c):
+def compute_host_dsigma(z_lens, c, f_c):
     """Precompute the host halo ESD contribution for given z_lens."""
-    from pyccl.halos import MassFuncTinker08
+    if len(_cache_host_terms) == 0:
+        _cache_host_terms.update(
+            precompute_host_dsigma_terms(
+                z_lens, c, f_c, n_rs=70
+            )
+        )
 
-    a = 1.0 / (1.0 + z_lens)
-
-    log10_M = np.linspace(_satellite_HOD_log10_M0, 16.0, 40)
-    log10_M_mid = 0.5 * (log10_M[1:] + log10_M[:-1])
-    dlogM = log10_M[1] - log10_M[0]
-
+    log10_M_mid = _cache_host_terms["log10_M_mid"]
+    dlog10_M = _cache_host_terms["dlog10_M"]
+    dndlogM = _cache_host_terms["dndlogM"]
+    rs_grid_M = _cache_host_terms["rs_grid_M"]
+    Sigma_M_rs = _cache_host_terms["Sigma_M_rs"]
     M_mid = 10 ** log10_M_mid
+
     N_sat = _satellite_HOD(
         log10_M_mid,
         log10_M0=_satellite_HOD_log10_M0,
@@ -496,8 +498,6 @@ def precompute_host_dsigma(z_lens, c, f_c):
         alpha=_satellite_HOD_alpha,
     )
 
-    hmf = MassFuncTinker08(mass_def=MassDef200m)
-    dndlogM = hmf(Planck18, M_mid, a)
     n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
 
     if n_bar == 0:
@@ -505,8 +505,6 @@ def precompute_host_dsigma(z_lens, c, f_c):
         return rp_out_Mpc, np.zeros(len(rp_out_Mpc))
 
     rp_out_Mpc = np.logspace(-5, 2, 200)    # comoving Mpc
-    n_rs = 70
-
     result_Sigma = np.zeros(len(rp_out_Mpc))
 
     # Loop over halo mass
@@ -514,29 +512,13 @@ def precompute_host_dsigma(z_lens, c, f_c):
         if N_sat[i] == 0:
             continue
 
-        r_vir = MassDef200m.get_radius(Planck18, M_mid[i], a)   # physical Mpc
-        r_vir = r_vir / a   # comoving Mpc
-
-        rs_grid = np.logspace(
-            -3, np.log10(0.95 * r_vir), n_rs,
-        )   # comoving Mpc
         P_rs = _satellite_radial_distribution(
-            rs_grid, lm, z_lens, c=c, f_c=f_c,
-        )
-
-        Sigma_rs = np.zeros((n_rs, len(rp_out_Mpc)))
-        for j, rs in enumerate(rs_grid):
-            Sigma_rs[j] = P_rs[j] * _Sigma_NFW_offset(
-                rp=rp_out_Mpc * h,  # comoving Mpc/h
-                rp_sat=rs * h,  # comoving Mpc/h
-                log10_M=lm,
-                z_lens=z_lens,
-                c=c,
-                f_c=f_c,
-            )   # h M_sun / (comoving pc)^2
+            rs_grid_M[i], lm, z_lens, c=c, f_c=f_c,
+        )   # shape (n_rs,)
+        Sigma_rs = Sigma_M_rs[i] # shape (n_rs, len(rp_out))
 
         result_Sigma += dndlogM[i] * N_sat[i] * np.trapezoid(
-            Sigma_rs, rs_grid, axis=0) * dlogM
+            P_rs[:, None] * Sigma_rs, rs_grid_M[i], axis=0) * dlog10_M
 
     result_Sigma /= n_bar
 
@@ -558,6 +540,56 @@ def precompute_host_dsigma(z_lens, c, f_c):
     rp_out = rp_out_Mpc * h  # comoving Mpc/h
     ds_pop = np.interp(rp_out, rp_fine, ds_fine)
     return rp_out, ds_pop
+
+
+def precompute_host_dsigma_terms(
+        z_lens, c, f_c, n_rs: int=70,
+):
+    from pyccl.halos import MassFuncTinker08
+
+    a = 1.0 / (1.0 + z_lens)
+    rp_out_Mpc = np.logspace(-5, 2, 200)  # comoving Mpc
+
+    log10_M = np.linspace(_satellite_HOD_log10_M0, 16.0, 40)
+    log10_M_mid = 0.5 * (log10_M[1:] + log10_M[:-1])
+    dlog10_M = log10_M[1] - log10_M[0]
+
+    M_mid = 10 ** log10_M_mid
+    hmf = MassFuncTinker08(mass_def=MassDef200m)
+    dndlogM = hmf(Planck18, M_mid, a)
+
+    Sigma_M_rs = np.zeros(shape=(
+        len(M_mid), n_rs, len(rp_out_Mpc)
+    ))
+    rs_grid_M = np.zeros(shape=(len(M_mid), n_rs))
+
+    # Loop over halo mass
+    for i, lm in enumerate(log10_M_mid):
+        r_vir = MassDef200m.get_radius(Planck18, M_mid[i], a)  # physical Mpc
+        r_vir = r_vir / a  # comoving Mpc
+
+        rs_grid_M[i] = np.logspace(
+            -3, np.log10(0.95 * r_vir), n_rs,
+        )  # comoving Mpc
+
+        for j, rs in enumerate(rs_grid_M[i]):
+            Sigma = _Sigma_NFW_offset(
+                rp=rp_out_Mpc * h,  # comoving Mpc/h
+                rp_sat=rs * h,  # comoving Mpc/h
+                log10_M=lm,
+                z_lens=z_lens,
+                c=c,
+                f_c=f_c,
+            )  # h M_sun / (comoving pc)^2
+            Sigma_M_rs[i, j] = Sigma
+
+    return {
+        "log10_M_mid": log10_M_mid,
+        "dlog10_M": dlog10_M,
+        "dndlogM": dndlogM,
+        "rs_grid_M": rs_grid_M,
+        "Sigma_M_rs": Sigma_M_rs,
+    }
 
 
 def precompute_2h(z_lens, log10_M):
