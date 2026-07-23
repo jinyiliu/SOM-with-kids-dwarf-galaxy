@@ -477,19 +477,19 @@ def _satellite_radial_distribution(
 
 def compute_host_dsigma(z_lens, c, f_c):
     """Precompute the host halo ESD contribution for given z_lens."""
-    if len(_cache_host_terms) == 0:
-        _cache_host_terms.update(
+    key = (z_lens, c, f_c)
+    if key not in _cache_host_terms:
+        _cache_host_terms[key] = (
             precompute_host_dsigma_terms(
                 z_lens, c, f_c, n_rs=70
             )
         )
 
-    log10_M_mid = _cache_host_terms["log10_M_mid"]
-    dlog10_M = _cache_host_terms["dlog10_M"]
-    dndlogM = _cache_host_terms["dndlogM"]
-    rs_grid_M = _cache_host_terms["rs_grid_M"]
-    Sigma_M_rs = _cache_host_terms["Sigma_M_rs"]
-    M_mid = 10 ** log10_M_mid
+    log10_M_mid = _cache_host_terms[key]["log10_M_mid"]
+    dlog10_M = _cache_host_terms[key]["dlog10_M"]
+    dndlogM = _cache_host_terms[key]["dndlogM"]
+    rs_grid_M = _cache_host_terms[key]["rs_grid_M"]
+    Sigma_M_rs = _cache_host_terms[key]["Sigma_M_rs"]
 
     N_sat = _satellite_HOD(
         log10_M_mid,
