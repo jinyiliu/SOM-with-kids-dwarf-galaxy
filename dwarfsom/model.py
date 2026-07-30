@@ -14,9 +14,9 @@ from astropy.constants import G
 from scipy.interpolate import interp1d
 
 h = astropy_Planck18.H0.value / 100
-_satellite_HOD_log10_M0 = 7.0
-_satellite_HOD_log10_M1 = 13.3
-_satellite_HOD_alpha = 1.0
+_satellite_HOD_log10_M0 = 10.0
+_satellite_HOD_log10_M1 = 13.0
+_satellite_HOD_alpha = 1.1
 
 _cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 
@@ -57,11 +57,15 @@ def DSigmaModel(
         frac_sat: float,
         log10_M_star: float,
         tau: float | None=None,
+        alpha: float | None=None,
+        log10_M0: float | None=None,
+        log10_M1: float | None=None,
         return_components: bool=False,
 ):
     ds_1h_cm = DSigma_1h_cm(rp, log10_M, z_lens, f_c=f_c)
     ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=1., tau=tau)
-    ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1.)
+    ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1.,
+        alpha=alpha, log10_M0=log10_M0, log10_M1=log10_M1)
     ds_2h = DSigma_2h(rp, log10_M, z_lens)
     ds_star = DSigma_star(rp, log10_M_star)
     ds_total = (
@@ -183,6 +187,9 @@ def DSigma_1h_sm_host(
         z_lens: float,
         c: float | None=None,
         f_c: float | None=None,
+        alpha: float | None=None,
+        log10_M0: float | None=None,
+        log10_M1: float | None=None,
 ):
     """Host halo contribution to satellite-matter ESD.
 
@@ -198,8 +205,12 @@ def DSigma_1h_sm_host(
         c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
         f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
             exclusive with c.
+        alpha: HOD power-law slope. Default: module-level value.
+        log10_M0: log10 minimum host mass for satellites. Default: module-level.
+        log10_M1: log10 pivot mass. Default: module-level.
     """
-    rp_grid, ds_grid = compute_host_dsigma(z_lens, c, f_c)
+    rp_grid, ds_grid = compute_host_dsigma(
+        z_lens, c, f_c, alpha=alpha, log10_M0=log10_M0, log10_M1=log10_M1)
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
@@ -475,8 +486,15 @@ def _satellite_radial_distribution(
     return P
 
 
-def compute_host_dsigma(z_lens, c, f_c):
+def compute_host_dsigma(z_lens, c, f_c, alpha=None, log10_M0=None, log10_M1=None):
     """Precompute the host halo ESD contribution for given z_lens."""
+    if alpha is None:
+        alpha = _satellite_HOD_alpha
+    if log10_M0 is None:
+        log10_M0 = _satellite_HOD_log10_M0
+    if log10_M1 is None:
+        log10_M1 = _satellite_HOD_log10_M1
+
     key = (z_lens, c, f_c)
     if key not in _cache_host_terms:
         _cache_host_terms[key] = (
@@ -493,9 +511,9 @@ def compute_host_dsigma(z_lens, c, f_c):
 
     N_sat = _satellite_HOD(
         log10_M_mid,
-        log10_M0=_satellite_HOD_log10_M0,
-        log10_M1=_satellite_HOD_log10_M1,
-        alpha=_satellite_HOD_alpha,
+        log10_M0=log10_M0,
+        log10_M1=log10_M1,
+        alpha=alpha,
     )
 
     n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
