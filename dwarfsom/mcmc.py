@@ -27,24 +27,34 @@ class MCMC:
         self.cov = covariance_matrix
         self.inv_cov = np.linalg.inv(covariance_matrix)
         self.param_priors = param_priors
-        self.param_ranges = [
-            prior_range for prior_type, prior_range in param_priors.values()
-        ]
-        self.n_dim = len(param_priors.keys()) # number of free parameters being sampled
+        self.n_dim = len(param_priors.keys())
+
+        self.priors = {}
+        for i, (name, (ptype, pval)) in enumerate(param_priors.items()):
+            if ptype == "flat":
+                lo, hi = pval
+                self.priors[name] = {"type": "flat", "idx": i,
+                                      "lo": lo, "hi": hi}
+            elif ptype == "gaussian":
+                mu, sigma = pval
+                self.priors[name] = {"type": "gaussian", "idx": i,
+                                      "mu": mu, "sigma": sigma,
+                                      "lo": mu - 10*sigma,
+                                      "hi": mu + 10*sigma}
 
 
     def _log_prior(self, params):
-        """Log prior of the parameters.
+        """Log prior of the parameters."""
+        lp = 0.
 
-        Notes:
-            Support only flat priors, ["flat", (low, high)].
-        """
-        log_prior = 0.
+        for name, prior in self.priors.items():
+            v = params[prior["idx"]]
+            if v < prior["lo"] or v > prior["hi"]:
+                return -np.inf
+            if prior["type"] == "gaussian":
+                lp += -0.5 * ((v - prior["mu"]) / prior["sigma"])**2
 
-        if self._outside_param_ranges(params):
-            return -np.inf
-
-        return log_prior
+        return lp
 
     def Gaussian_log_likelihood(self, params):
         if self._outside_param_ranges(params):
@@ -62,11 +72,15 @@ class MCMC:
 
     def prior_transform(self, u):
         """Prior transform function for nested sampler."""
+        from scipy.special import erfinv
         x = np.array(u)
-        for i, param_range in enumerate(self.param_ranges):
-            low, high = param_range
-            x[i] = low + (high - low) * x[i]
-
+        for name, prior in self.priors.items():
+            if prior["type"] == "flat":
+                x[prior["idx"]] = prior["lo"] + (
+                    prior["hi"] - prior["lo"]) * u[prior["idx"]]
+            elif prior["type"] == "gaussian":
+                x[prior["idx"]] = prior["mu"] + prior["sigma"] * np.sqrt(2) * erfinv(
+                    2 * u[prior["idx"]] - 1)
         return x
 
 
@@ -122,11 +136,11 @@ class MCMC:
         np.save(fname, self.sampler.results.logl)
 
     def _outside_param_ranges(self, params):
-        """Check if any parameter is outside its allowed range for emcee sampler"""
-        for p, (low, high) in zip(params, self.param_ranges):
-            if p < low or p > high:
+        """Check if any parameter is outside its allowed range."""
+        for name, prior in self.priors.items():
+            v = params[prior["idx"]]
+            if v < prior["lo"] or v > prior["hi"]:
                 return True
-
         return False
 
 
