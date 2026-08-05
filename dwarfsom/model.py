@@ -16,7 +16,9 @@ from scipy.interpolate import interp1d
 h = astropy_Planck18.H0.value / 100
 _satellite_HOD_log10_M0 = 10.0
 _satellite_HOD_log10_M1 = 13.0
-_satellite_HOD_alpha = 1.1
+_satellite_HOD_alpha = 1.0
+_log10_M_host_min = 10.0
+_log10_M_host_max = 14.0
 
 _cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 
@@ -190,6 +192,7 @@ def DSigma_1h_sm_host(
         alpha: float | None=None,
         log10_M0: float | None=None,
         log10_M1: float | None=None,
+        log10_M_host: float | None=None,
 ):
     """Host halo contribution to satellite-matter ESD.
 
@@ -208,9 +211,11 @@ def DSigma_1h_sm_host(
         alpha: HOD power-law slope. Default: module-level value.
         log10_M0: log10 minimum host mass for satellites. Default: module-level.
         log10_M1: log10 pivot mass. Default: module-level.
+        log10_M_host: Host halo mass.
     """
     rp_grid, ds_grid = compute_host_dsigma(
-        z_lens, c, f_c, alpha=alpha, log10_M0=log10_M0, log10_M1=log10_M1)
+        z_lens, c=c, f_c=f_c, alpha=alpha,
+        log10_M0=log10_M0, log10_M1=log10_M1, log10_M_host=log10_M_host)
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
@@ -486,62 +491,90 @@ def _satellite_radial_distribution(
     return P
 
 
-def compute_host_dsigma(z_lens, c, f_c, alpha=None, log10_M0=None, log10_M1=None):
+def compute_host_dsigma(
+        z_lens, c, f_c, alpha=None,
+        log10_M0=None, log10_M1=None,
+        log10_M_host=None,
+        use_single_halo: bool=True,
+):
     """Precompute the host halo ESD contribution for given z_lens."""
-    if alpha is None:
-        alpha = _satellite_HOD_alpha
-    if log10_M0 is None:
-        log10_M0 = _satellite_HOD_log10_M0
-    if log10_M1 is None:
-        log10_M1 = _satellite_HOD_log10_M1
+    if use_single_halo:
+        if log10_M_host is None:
+            raise ValueError(
+                "log10_M_host must be provided when use_single_halo=True.")
 
-    key = (z_lens, c, f_c)
-    if key not in _cache_host_terms:
-        _cache_host_terms[key] = (
-            precompute_host_dsigma_terms(
-                z_lens, c, f_c, n_rs=70
+        key = (z_lens, c, f_c)
+        if key not in _cache_host_terms:
+            _cache_host_terms[key] = precompute_host_dsigma_terms(
+                z_lens, c, f_c, n_rs=70,
+                n_log10_M_host=100, use_single_halo=True)
+
+        cache = _cache_host_terms[key]
+        lm_grid = cache["log10_M_host_grid"]
+        Sigma_M = cache["Sigma_M"]
+        rp_out_Mpc = cache["rp_out_Mpc"]
+
+        idx = np.searchsorted(lm_grid, log10_M_host) - 1
+        frac = (log10_M_host - lm_grid[idx]) / (lm_grid[idx + 1] - lm_grid[idx])
+
+        result_Sigma = (1 - frac) * Sigma_M[idx] + frac * Sigma_M[idx + 1]
+
+    else:
+        if alpha is None:
+            alpha = _satellite_HOD_alpha
+        if log10_M0 is None:
+            log10_M0 = _satellite_HOD_log10_M0
+        if log10_M1 is None:
+            log10_M1 = _satellite_HOD_log10_M1
+
+        key = (z_lens, c, f_c)
+        if key not in _cache_host_terms:
+            _cache_host_terms[key] = (
+                precompute_host_dsigma_terms(
+                    z_lens, c, f_c, n_rs=70, use_single_halo=False
+                )
             )
+
+        log10_M_mid = _cache_host_terms[key]["log10_M_mid"]
+        dlog10_M = _cache_host_terms[key]["dlog10_M"]
+        dndlogM = _cache_host_terms[key]["dndlogM"]
+        rs_grid_M = _cache_host_terms[key]["rs_grid_M"]
+        Sigma_M_rs = _cache_host_terms[key]["Sigma_M_rs"]
+
+        N_sat = _satellite_HOD(
+            log10_M_mid,
+            log10_M0=log10_M0,
+            log10_M1=log10_M1,
+            alpha=alpha,
         )
 
-    log10_M_mid = _cache_host_terms[key]["log10_M_mid"]
-    dlog10_M = _cache_host_terms[key]["dlog10_M"]
-    dndlogM = _cache_host_terms[key]["dndlogM"]
-    rs_grid_M = _cache_host_terms[key]["rs_grid_M"]
-    Sigma_M_rs = _cache_host_terms[key]["Sigma_M_rs"]
+        n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
 
-    N_sat = _satellite_HOD(
-        log10_M_mid,
-        log10_M0=log10_M0,
-        log10_M1=log10_M1,
-        alpha=alpha,
-    )
+        if n_bar == 0:
+            rp_out_Mpc = np.logspace(-5, 2, 200)
+            return rp_out_Mpc, np.zeros(len(rp_out_Mpc))
 
-    n_bar = np.trapezoid(dndlogM * N_sat, log10_M_mid)
+        rp_out_Mpc = np.logspace(-5, 2, 200)    # comoving Mpc
+        result_Sigma = np.zeros(len(rp_out_Mpc))
 
-    if n_bar == 0:
-        rp_out_Mpc = np.logspace(-5, 2, 200)
-        return rp_out_Mpc, np.zeros(len(rp_out_Mpc))
+        # Loop over halo mass
+        for i, lm in enumerate(log10_M_mid):
+            if N_sat[i] == 0:
+                continue
 
-    rp_out_Mpc = np.logspace(-5, 2, 200)    # comoving Mpc
-    result_Sigma = np.zeros(len(rp_out_Mpc))
+            P_rs = _satellite_radial_distribution(
+                rs_grid_M[i], lm, z_lens, c=c, f_c=f_c,
+            )   # shape (n_rs,)
+            Sigma_rs = Sigma_M_rs[i] # shape (n_rs, len(rp_out))
 
-    # Loop over halo mass
-    for i, lm in enumerate(log10_M_mid):
-        if N_sat[i] == 0:
-            continue
+            result_Sigma += dndlogM[i] * N_sat[i] * np.trapezoid(
+                P_rs[:, None] * Sigma_rs, rs_grid_M[i], axis=0) * dlog10_M
 
-        P_rs = _satellite_radial_distribution(
-            rs_grid_M[i], lm, z_lens, c=c, f_c=f_c,
-        )   # shape (n_rs,)
-        Sigma_rs = Sigma_M_rs[i] # shape (n_rs, len(rp_out))
+        result_Sigma /= n_bar
 
-        result_Sigma += dndlogM[i] * N_sat[i] * np.trapezoid(
-            P_rs[:, None] * Sigma_rs, rs_grid_M[i], axis=0) * dlog10_M
-
-    result_Sigma /= n_bar
-
+    # Σ̄ → ΔΣ shared pipeline
     rp_fine_Mpc = np.logspace(-5, 2, 500)  # comoving Mpc
-    Sigma_fine = np.interp(  # h M_sun / (comoving pc)^2
+    Sigma_fine = np.interp(
         np.log(rp_fine_Mpc), np.log(rp_out_Mpc), result_Sigma)
 
     rp_fine = rp_fine_Mpc * h  # comoving Mpc/h
@@ -562,52 +595,92 @@ def compute_host_dsigma(z_lens, c, f_c, alpha=None, log10_M0=None, log10_M1=None
 
 def precompute_host_dsigma_terms(
         z_lens, c, f_c, n_rs: int=70,
+        log10_M_host_min=_log10_M_host_min,
+        log10_M_host_max=_log10_M_host_max,
+        n_log10_M_host=100, use_single_halo: bool=True,
 ):
-    from pyccl.halos import MassFuncTinker08
-
     a = 1.0 / (1.0 + z_lens)
     rp_out_Mpc = np.logspace(-5, 2, 200)  # comoving Mpc
 
-    log10_M = np.linspace(_satellite_HOD_log10_M0, 16.0, 40)
-    log10_M_mid = 0.5 * (log10_M[1:] + log10_M[:-1])
-    dlog10_M = log10_M[1] - log10_M[0]
+    if use_single_halo:
+        log10_M_host_grid = np.linspace(
+            log10_M_host_min, log10_M_host_max, n_log10_M_host)
 
-    M_mid = 10 ** log10_M_mid
-    hmf = MassFuncTinker08(mass_def=MassDef200m)
-    dndlogM = hmf(Planck18, M_mid, a)
+        Sigma_M = np.zeros(
+            (n_log10_M_host, len(rp_out_Mpc)))
 
-    Sigma_M_rs = np.zeros(shape=(
-        len(M_mid), n_rs, len(rp_out_Mpc)
-    ))
-    rs_grid_M = np.zeros(shape=(len(M_mid), n_rs))
+        Sigma_off_rs = np.zeros((n_rs, len(rp_out_Mpc)))
 
-    # Loop over halo mass
-    for i, lm in enumerate(log10_M_mid):
-        r_vir = MassDef200m.get_radius(Planck18, M_mid[i], a)  # physical Mpc
-        r_vir = r_vir / a  # comoving Mpc
+        for i, lm in enumerate(log10_M_host_grid):
+            r_vir = MassDef200m.get_radius(
+                Planck18, 10**lm, a) / a
+            rs_grid = np.logspace(
+                -3, np.log10(0.95 * r_vir), n_rs)
 
-        rs_grid_M[i] = np.logspace(
-            -3, np.log10(0.95 * r_vir), n_rs,
-        )  # comoving Mpc
+            for j, rs in enumerate(rs_grid):
+                Sigma_off_rs[j] = _Sigma_NFW_offset(
+                    rp=rp_out_Mpc * h,
+                    rp_sat=rs * h,
+                    log10_M=lm,
+                    z_lens=z_lens,
+                    c=c,
+                    f_c=f_c,
+                )
 
-        for j, rs in enumerate(rs_grid_M[i]):
-            Sigma = _Sigma_NFW_offset(
-                rp=rp_out_Mpc * h,  # comoving Mpc/h
-                rp_sat=rs * h,  # comoving Mpc/h
-                log10_M=lm,
-                z_lens=z_lens,
-                c=c,
-                f_c=f_c,
-            )  # h M_sun / (comoving pc)^2
-            Sigma_M_rs[i, j] = Sigma
+            P_rs = _satellite_radial_distribution(
+                rs_grid, lm, z_lens, c=c, f_c=f_c)
+            Sigma_M[i] = np.trapezoid(
+                P_rs[:, None] * Sigma_off_rs, rs_grid, axis=0)
 
-    return {
-        "log10_M_mid": log10_M_mid,
-        "dlog10_M": dlog10_M,
-        "dndlogM": dndlogM,
-        "rs_grid_M": rs_grid_M,
-        "Sigma_M_rs": Sigma_M_rs,
-    }
+        return {
+            "log10_M_host_grid": log10_M_host_grid,
+            "Sigma_M": Sigma_M,
+            "rp_out_Mpc": rp_out_Mpc,
+        }
+
+    else: # Average over HMF and HOD
+        from pyccl.halos import MassFuncTinker08
+
+        log10_M = np.linspace(_satellite_HOD_log10_M0, 16.0, 40)
+        log10_M_mid = 0.5 * (log10_M[1:] + log10_M[:-1])
+        dlog10_M = log10_M[1] - log10_M[0]
+
+        M_mid = 10 ** log10_M_mid
+        hmf = MassFuncTinker08(mass_def=MassDef200m)
+        dndlogM = hmf(Planck18, M_mid, a)
+
+        Sigma_M_rs = np.zeros(shape=(
+            len(M_mid), n_rs, len(rp_out_Mpc)
+        ))
+        rs_grid_M = np.zeros(shape=(len(M_mid), n_rs))
+
+        # Loop over halo mass
+        for i, lm in enumerate(log10_M_mid):
+            r_vir = MassDef200m.get_radius(Planck18, M_mid[i], a)  # physical Mpc
+            r_vir = r_vir / a  # comoving Mpc
+
+            rs_grid_M[i] = np.logspace(
+                -3, np.log10(0.95 * r_vir), n_rs,
+            )  # comoving Mpc
+
+            for j, rs in enumerate(rs_grid_M[i]):
+                Sigma = _Sigma_NFW_offset(
+                    rp=rp_out_Mpc * h,  # comoving Mpc/h
+                    rp_sat=rs * h,  # comoving Mpc/h
+                    log10_M=lm,
+                    z_lens=z_lens,
+                    c=c,
+                    f_c=f_c,
+                )  # h M_sun / (comoving pc)^2
+                Sigma_M_rs[i, j] = Sigma
+
+        return {
+            "log10_M_mid": log10_M_mid,
+            "dlog10_M": dlog10_M,
+            "dndlogM": dndlogM,
+            "rs_grid_M": rs_grid_M,
+            "Sigma_M_rs": Sigma_M_rs,
+        }
 
 
 def precompute_2h(z_lens, log10_M):
