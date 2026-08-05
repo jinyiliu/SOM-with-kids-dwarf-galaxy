@@ -572,25 +572,17 @@ def compute_host_dsigma(
 
         result_Sigma /= n_bar
 
-    # Σ̄ → ΔΣ shared pipeline
-    rp_fine_Mpc = np.logspace(-5, 2, 500)  # comoving Mpc
-    Sigma_fine = np.interp(
-        np.log(rp_fine_Mpc), np.log(rp_out_Mpc), result_Sigma)
-
-    rp_fine = rp_fine_Mpc * h  # comoving Mpc/h
-
-    R_Sigma = rp_fine * Sigma_fine
+    # --- Σ̄ → ΔΣ (shared pipeline) ---
+    rp_out_Mpc_com = rp_out_Mpc * h  # Mpc/h
+    R_Sigma = rp_out_Mpc_com * result_Sigma
     I_cum = np.zeros_like(R_Sigma)
-    dr = np.diff(rp_fine)
+    dr = np.diff(rp_out_Mpc_com)
     I_cum[1:] = 0.5 * np.cumsum(dr * (R_Sigma[1:] + R_Sigma[:-1]))
-    Sigma_bar = 2.0 * I_cum / rp_fine ** 2
-    Sigma_bar[0] = Sigma_fine[0]
+    Sigma_bar = 2.0 * I_cum / rp_out_Mpc_com ** 2
+    Sigma_bar[0] = result_Sigma[0]
 
-    ds_fine = np.maximum((Sigma_bar - Sigma_fine), 0.0)
-
-    rp_out = rp_out_Mpc * h  # comoving Mpc/h
-    ds_pop = np.interp(rp_out, rp_fine, ds_fine)
-    return rp_out, ds_pop
+    ds_pop = np.maximum((Sigma_bar - result_Sigma), 0.0)
+    return rp_out_Mpc_com, ds_pop
 
 
 def precompute_host_dsigma_terms(
