@@ -17,8 +17,8 @@ h = astropy_Planck18.H0.value / 100
 _satellite_HOD_log10_M0 = 10.0
 _satellite_HOD_log10_M1 = 13.0
 _satellite_HOD_alpha = 1.0
-_log10_M_host_min = 10.0
-_log10_M_host_max = 14.0
+_log10_M_host_min = 12.0
+_log10_M_host_max = 16.0
 
 _cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 
@@ -62,13 +62,14 @@ def DSigmaModel(
         alpha: float | None=None,
         log10_M0: float | None=None,
         log10_M1: float | None=None,
+        log10_M_host: float | None=None,
         return_components: bool=False,
 ):
     ds_1h_cm = DSigma_1h_cm(rp, log10_M, z_lens, f_c=f_c)
     ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=1., tau=tau)
-    ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1.,
-        alpha=alpha, log10_M0=log10_M0, log10_M1=log10_M1)
-    ds_2h = DSigma_2h(rp, log10_M, z_lens)
+    ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1., alpha=alpha,
+        log10_M0=log10_M0, log10_M1=log10_M1, log10_M_host=log10_M_host)
+    ds_2h = DSigma_2h(rp, log10_M, z_lens, log10_M_host, frac_sat)
     ds_star = DSigma_star(rp, log10_M_star)
     ds_total = (
             ds_star +
@@ -223,6 +224,8 @@ def DSigma_2h(
         rp: np.ndarray,
         log10_M: float,
         z_lens: float,
+        log10_M_host: float | None=None,
+        frac_sat: float | None=None,
 ):
     """Two-halo ESD from linear bias with Tinker 2005 scale dependence.
 
@@ -235,8 +238,10 @@ def DSigma_2h(
         rp: Projected separations in Mpc/h.
         log10_M: log10 of halo mass M_200m in M_sun.
         z_lens: Lens redshift.
+        log10_M_host:
+        frac_sat:
     """
-    rp_grid, ds_grid = precompute_2h(z_lens, log10_M)
+    rp_grid, ds_grid = compute_2h(z_lens, log10_M, log10_M_host, frac_sat)
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
@@ -586,10 +591,10 @@ def compute_host_dsigma(
 
 
 def precompute_host_dsigma_terms(
-        z_lens, c, f_c, n_rs: int=70,
+        z_lens, c, f_c, n_rs: int=150,
         log10_M_host_min=_log10_M_host_min,
         log10_M_host_max=_log10_M_host_max,
-        n_log10_M_host=100, use_single_halo: bool=True,
+        n_log10_M_host=200, use_single_halo: bool=True,
 ):
     a = 1.0 / (1.0 + z_lens)
     rp_out_Mpc = np.logspace(-5, 2, 200)  # comoving Mpc
@@ -607,7 +612,7 @@ def precompute_host_dsigma_terms(
             r_vir = MassDef200m.get_radius(
                 Planck18, 10**lm, a) / a
             rs_grid = np.logspace(
-                -3, np.log10(0.95 * r_vir), n_rs)
+                -3, np.log10(5. * r_vir), n_rs)
 
             for j, rs in enumerate(rs_grid):
                 Sigma_off_rs[j] = _Sigma_NFW_offset(
@@ -675,7 +680,12 @@ def precompute_host_dsigma_terms(
         }
 
 
-def precompute_2h(z_lens, log10_M):
+def compute_2h(
+        z_lens,
+        log10_M,
+        log10_M_host: float | None=None,
+        frac_sat: float | None=None,
+):
     """Precompute the 2-halo ESD for a given (z_lens, log10_M)."""
     from pyccl.halos import HaloBiasTinker10
 
@@ -683,7 +693,14 @@ def precompute_2h(z_lens, log10_M):
     M = 10 ** log10_M
 
     bias_model = HaloBiasTinker10(mass_def=MassDef200m)
-    b_h = bias_model(Planck18, M, a)
+    if log10_M_host is not None:
+        M_host = 10 ** log10_M_host
+        if frac_sat is None:
+            raise ValueError
+        b_h = (1 - frac_sat) * bias_model(Planck18, M, a) + \
+            frac_sat * bias_model(Planck18, M_host, a)
+    else:
+        b_h = bias_model(Planck18, M, a)
 
     # Matter density in unit M_sun / (comoving Mpc)^3 at redshift z_lens
     rho_m = _Omega_m * _rho_crit0
