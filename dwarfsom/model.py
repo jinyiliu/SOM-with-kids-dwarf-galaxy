@@ -12,6 +12,7 @@ from astropy.cosmology import Planck18 as astropy_Planck18
 import astropy.units as u
 from astropy.constants import G
 from scipy.interpolate import interp1d
+from scipy.signal import savgol_filter
 
 h = astropy_Planck18.H0.value / 100
 _satellite_HOD_log10_M0 = 10.0
@@ -19,6 +20,8 @@ _satellite_HOD_log10_M1 = 13.0
 _satellite_HOD_alpha = 1.0
 _log10_M_host_min = 12.0
 _log10_M_host_max = 16.0
+_savgol_window = 21
+_savgol_polyorder = 3
 
 _cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 
@@ -612,7 +615,7 @@ def precompute_host_dsigma_terms(
             r_vir = MassDef200m.get_radius(
                 Planck18, 10**lm, a) / a
             rs_grid = np.logspace(
-                -3, np.log10(5. * r_vir), n_rs)
+                -3, np.log10(1. * r_vir), n_rs)
 
             for j, rs in enumerate(rs_grid):
                 Sigma_off_rs[j] = _Sigma_NFW_offset(
@@ -626,8 +629,14 @@ def precompute_host_dsigma_terms(
 
             P_rs = _satellite_radial_distribution(
                 rs_grid, lm, z_lens, c=c, f_c=f_c)
-            Sigma_M[i] = np.trapezoid(
+            _Sigma_M = np.trapezoid(
                 P_rs[:, None] * Sigma_off_rs, rs_grid, axis=0)
+            log_Sigma = np.log10(_Sigma_M)
+            Sigma_M[i] = 10.0 ** savgol_filter(
+                log_Sigma,
+                window_length=_savgol_window,
+                polyorder=_savgol_polyorder,
+            )
 
         return {
             "log10_M_host_grid": log10_M_host_grid,
