@@ -97,26 +97,41 @@ class DwarfSOM:
         print(f"Labeled SOM with {', '.join(label_Xy.columns[self.n_dim:].tolist())} data.")
 
 
-    def count_bmus_per_neuron(self, bmus: np.ndarray | None=None) -> np.ndarray:
-        """Count the number of BMUs per neuron.
+    def count_bmus_per_neuron(
+            self, bmus: np.ndarray | None=None,
+            weights: np.ndarray | None=None,
+    ) -> np.ndarray:
+        """Count the (optionally weighted) number of BMUs per neuron.
 
         Args:
             bmus: Array of shape (n_samples, 2) containing the BMU coordinates
                 for each sample. Usually obtained from `somoclu.bmus`.
+            weights: Array of shape (n_samples,) containing the weights for
+                each sample. If provided, normalized so that
+                `sum(weights) == n_samples`.
 
         Returns:
-            counts: Array of shape (n_rows, n_columns) containing the counts
-                of BMUs per neuron.
+            counts: Array of shape (n_rows, n_columns) containing the weighted
+                counts of BMUs per neuron.
         """
         assert self.is_trained
         if bmus is None:
             bmus = self.bmus_train
 
+        if weights is None:
+            weights = np.ones(len(bmus))
+        else:
+            weights = np.asarray(weights, dtype=np.float64)
+            if len(weights) != len(bmus):
+                raise ValueError("weights must have the same length as bmus.")
+            total = weights.sum()
+            weights *= len(bmus) / total
+
         counts = np.zeros(
             shape=(self.n_rows, self.n_columns),
-            dtype=np.int32,
+            dtype=np.float64,
         )
-        np.add.at(counts, (bmus[:, 0], bmus[:, 1]), 1)
+        np.add.at(counts, (bmus[:, 0], bmus[:, 1]), weights)
         return counts
 
 
@@ -145,15 +160,24 @@ class DwarfSOM:
             self,
             label_map: np.ndarray,
             bin_edges: list,
+            weights: np.ndarray | None=None,
             return_neuron_weights: bool=True,
     ) -> list[list[tuple]] | tuple[list[list[tuple]], list[np.ndarray]]:
-        """Group SOM neurons into bins based on label map values."""
+        """Group SOM neurons into bins based on label map values.
+
+        Args:
+            label_map: Array of shape (n_rows, n_columns) containing the label values.
+            bin_edges: Bin edges.
+            weights: Array of shape (n_samples,) containing the weights for
+                each sample.
+            return_neuron_weights:
+        """
         label_indices = np.moveaxis(
             a=np.indices(label_map.shape),
             source=0,
             destination=-1,
         )
-        counts = self.count_bmus_per_neuron().astype(np.float64)
+        counts = self.count_bmus_per_neuron(weights=weights)
         neuron_weights_list = []
         neuron_coords_list = []
 
