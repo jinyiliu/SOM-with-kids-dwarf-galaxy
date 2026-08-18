@@ -20,7 +20,7 @@ _satellite_HOD_log10_M1 = 13.0
 _satellite_HOD_alpha = 1.0
 _log10_M_host_min = 12.0
 _log10_M_host_max = 16.0
-_savgol_window = 21
+_savgol_window = 31
 _savgol_polyorder = 3
 
 _cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
@@ -615,7 +615,7 @@ def precompute_host_dsigma_terms(
             r_vir = MassDef200m.get_radius(
                 Planck18, 10**lm, a) / a
             rs_grid = np.logspace(
-                -3, np.log10(1. * r_vir), n_rs)
+                -3, np.log10(6. * r_vir), n_rs)
 
             for j, rs in enumerate(rs_grid):
                 Sigma_off_rs[j] = _Sigma_NFW_offset(
