@@ -181,6 +181,10 @@ class DSigma:
 
         if self.randoms is not None:
             self._weighted_npairs = ng.weight
+            self._lens_weight_sum = (
+                np.sum(self.lens.w) if self.lens.w is not None
+                else len(self.lens.ra)
+            )
             self._boost_array = np.empty(
                 shape=(len(self.randoms), self.n_rp_bins)
             )
@@ -212,9 +216,13 @@ class DSigma:
                 npatch=self.npatch,
             )
             ng_rand.process(random_Catalog, self._source_Catalog)
+            random_weight_sum = (
+                np.sum(self.randoms[i].w) if self.randoms[i].w is not None
+                else len(self.randoms[i].ra)
+            )
             self._boost_array[i] = (
-                    (self._weighted_npairs / len(self.lens.ra)) /
-                    (ng_rand.weight / len(self.randoms[i].ra))
+                    (self._weighted_npairs / self._lens_weight_sum) /
+                    (ng_rand.weight / random_weight_sum)
             )
             self._dsigma_rand_array[0][i] = ng_rand.xi * self._effective_sigma_crit
             self._dsigma_rand_array[1][i] = ng_rand.xi_im * self._effective_sigma_crit
