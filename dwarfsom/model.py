@@ -724,10 +724,10 @@ def compute_2h(
     xi_lin = np.trapezoid(integrand, k, axis=0) / (2 * np.pi**2)   # dimensionless
 
     # Tinker 2005 scale-dependent bias correction
-    eta = (1 + 1.17 * xi_lin)**1.49 / (1 + 0.69 * xi_lin)**2.09
+    # eta = (1 + 1.17 * xi_lin)**1.49 / (1 + 0.69 * xi_lin)**2.09
 
     # Galaxy-matter correlation
-    xi_gm = b_h * eta * xi_lin
+    xi_gm = b_h * xi_lin
 
     # Create a log-space linear interpolator
     xi_interp = interp1d(
