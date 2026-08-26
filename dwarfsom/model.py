@@ -489,7 +489,7 @@ def _satellite_radial_distribution(
         f_c:
     """
     nfw, a, M = _get_nfw_profile(
-        log10_M, z_lens, c, f_c, truncated=False, analytic=True)
+        log10_M, z_lens, c, f_c, truncated=True, analytic=False)
 
     r_Mpc = np.atleast_1d(np.asarray(rp_sat, dtype=float))  # comoving Mpc
 
@@ -499,16 +499,15 @@ def _satellite_radial_distribution(
     # Taper the large-seperation edge so that P -> 0 at the outer boundary
     # This avoids the divergent tail of the untruncated-NFW profile
     # (2π rp_sat x Σ_NFW), which would otherwise make the normalisation ill-defined.
-    # FIXME: Use a truncated-NFW profile directly instead of tapering.
 
-    x = np.linspace(0, 1, len(r_Mpc))
     # Quintic smoothstep function
-    smoothstep = lambda y: y**3 * (10.0 - 15.0 * y + 6.0 * y**2)
-    window = np.ones_like(x)
-    right_fraction = 1 - np.argmax(P) / len(P)
-    right = x > 1. - right_fraction
-    window[right] = smoothstep((1.0 - x[right]) / right_fraction)
-    P *= window
+    smoothstep = lambda y: y ** 3 * (10.0 - 15.0 * y + 6.0 * y ** 2)
+    x = np.linspace(0, 1, len(r_Mpc))
+    # window = np.ones_like(x)
+    # right_fraction = 1 - np.argmax(P) / len(P)
+    # right = x > 1. - right_fraction
+    # window[right] = smoothstep((1.0 - x[right]) / right_fraction)
+    # P *= window
 
     if density:
         normalization = np.trapezoid(P, r_Mpc)
