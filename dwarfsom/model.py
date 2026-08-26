@@ -474,6 +474,7 @@ def _satellite_radial_distribution(
         z_lens: float,
         c: float | None=None,
         f_c: float | None=None,
+        density: bool=False,
 ):
     """Projected satellite number density profile.
 
@@ -495,26 +496,41 @@ def _satellite_radial_distribution(
     Sigma = nfw.projected(Planck18, r_Mpc, M, a)
     P = 2 * np.pi * r_Mpc * Sigma
 
-    # Taper only the edges, leaving the central part of the profile unchanged.
+    # Taper the large-seperation edge so that P -> 0 at the outer boundary
+    # This avoids the divergent tail of the untruncated-NFW profile
+    # (2π rp_sat x Σ_NFW), which would otherwise make the normalisation ill-defined.
+    # FIXME: Use a truncated-NFW profile directly instead of tapering.
+
     x = np.linspace(0, 1, len(r_Mpc))
-    # smoothstep = lambda y: y**3 * (10.0 - 15.0 * y + 6.0 * y**2)
-    smoothstep = lambda y: y + y**2 - y**3
-
-    left_fraction = np.argmax(P) / len(P)
-    right_fraction = 1 - left_fraction
-    left = x < left_fraction
-    right = x > 1 - right_fraction
-
+    # Quintic smoothstep function
+    smoothstep = lambda y: y**3 * (10.0 - 15.0 * y + 6.0 * y**2)
     window = np.ones_like(x)
-    window[left] = smoothstep(x[left] / left_fraction)
+    right_fraction = 1 - np.argmax(P) / len(P)
+    right = x > 1. - right_fraction
     window[right] = smoothstep((1.0 - x[right]) / right_fraction)
-
     P *= window
-    normalization = np.trapezoid(P, r_Mpc)
-    if normalization <= 0.0 or not np.isfinite(normalization):
-        raise ValueError("Satellite radial distribution is invalid.")
 
-    P /= normalization
+    if density:
+        normalization = np.trapezoid(P, r_Mpc)
+        if normalization <= 0.0 or not np.isfinite(normalization):
+            raise ValueError("Satellite radial distribution is invalid.")
+        P /= normalization
+    else:
+        widths = np.zeros_like(r_Mpc)
+        widths[1:-1] = (r_Mpc[2:] - r_Mpc[:-2]) / 2
+        widths[0] = (r_Mpc[1] - r_Mpc[0]) / 2
+        widths[-1] = (r_Mpc[-1] - r_Mpc[-2]) / 2
+        P *= widths
+
+        window = np.ones_like(x)
+        left_fraction = np.argmax(P) / len(P)
+        left = x < left_fraction
+        window[left] = smoothstep(x[left] / left_fraction)
+
+        P *= window
+
+        P /= P.sum()
+
     return P
 
 
