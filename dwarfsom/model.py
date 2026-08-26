@@ -494,8 +494,27 @@ def _satellite_radial_distribution(
 
     Sigma = nfw.projected(Planck18, r_Mpc, M, a)
     P = 2 * np.pi * r_Mpc * Sigma
-    if len(r_Mpc) > 1:
-        P = P / np.trapezoid(P, r_Mpc)
+
+    # Taper only the edges, leaving the central part of the profile unchanged.
+    x = np.linspace(0, 1, len(r_Mpc))
+    # smoothstep = lambda y: y**3 * (10.0 - 15.0 * y + 6.0 * y**2)
+    smoothstep = lambda y: y + y**2 - y**3
+
+    left_fraction = np.argmax(P) / len(P)
+    right_fraction = 1 - left_fraction
+    left = x < left_fraction
+    right = x > 1 - right_fraction
+
+    window = np.ones_like(x)
+    window[left] = smoothstep(x[left] / left_fraction)
+    window[right] = smoothstep((1.0 - x[right]) / right_fraction)
+
+    P *= window
+    normalization = np.trapezoid(P, r_Mpc)
+    if normalization <= 0.0 or not np.isfinite(normalization):
+        raise ValueError("Satellite radial distribution is invalid.")
+
+    P /= normalization
     return P
 
 
