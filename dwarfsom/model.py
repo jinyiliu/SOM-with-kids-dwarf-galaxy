@@ -53,6 +53,9 @@ Planck18 = ccl.Cosmology(
     sigma8=0.8111,
 )
 
+# Quintic smoothstep function
+smoothstep = lambda y: y ** 3 * (10.0 - 15.0 * y + 6.0 * y ** 2)
+
 
 def DSigmaModel(
         rp: np.ndarray,
@@ -437,6 +440,57 @@ def _Sigma_BMO(R: np.ndarray, M0: float, rs: float, tau: float):
     return pref * (term1 + term2 + term3 + term4)   # M_sun / (comoving Mpc)^2
 
 
+def _Sigma_NFW_hollow(
+        R: np.ndarray,
+        log10_M: float,
+        z_lens: float,
+        r_hollow: float,
+        c: float | None=None,
+        f_c: float | None=None,
+        n_l: int=256,
+):
+    """Projected surface density of a smoothly-hollowed, virial-truncated NFW.
+
+    The 3D satellite tracer is
+        n(r) = ρ_NFW(r) × smoothstep(r / r_hollow)   for  r < r_vir,
+        n(r) = 0                                     otherwise,
+    where smoothstep rises from 0 at r = 0 to 1 at r = r_hollow.
+    Projecting gives
+        Σ(R) = 2 ∫ ρ_NFW(√(R² + l²)) smoothstep(√(R²+l²)/r_hollow) dl.
+
+    Args:
+        R: Projected radii in comoving Mpc.
+        log10_M: log10 of host halo mass M_200m in M_sun.
+        z_lens: Lens redshift.
+        r_hollow: Radius of the hollow core in comoving Mpc.
+        c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
+        f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
+            exclusive with c.
+        n_l: Number of line-of-sight quadrature points.
+
+    Returns:
+        Projected surface density in M_sun / (comoving Mpc)^2.
+    """
+    nfw, a, M = _get_nfw_profile(
+        log10_M, z_lens, c, f_c, truncated=True, analytic=False)
+
+    r_vir = MassDef200m.get_radius(Planck18, M, a) / a  # comoving Mpc
+    R = np.atleast_1d(np.asarray(R, dtype=float))
+
+    Sigma = np.zeros_like(R)
+    for i, Ri in enumerate(R):
+        if Ri >= r_vir:
+            continue
+        l_max = np.sqrt(r_vir**2 - Ri**2)               # outer truncation
+        l = np.linspace(0.0, l_max, n_l)
+        r = np.sqrt(Ri**2 + l**2)
+        rho = nfw.real(Planck18, r, M, a)               # 3D NFW density
+        hollow = smoothstep(np.clip(r / r_hollow, 0.0, 1.0))
+        Sigma[i] = 2.0 * np.trapezoid(rho * hollow, l)
+
+    return Sigma
+
+
 def _satellite_HOD(
         log10_M: float | np.ndarray,
         log10_M0: float=_satellite_HOD_log10_M0,
@@ -500,8 +554,6 @@ def _satellite_radial_distribution(
     # This avoids the divergent tail of the untruncated-NFW profile
     # (2π rp_sat x Σ_NFW), which would otherwise make the normalisation ill-defined.
 
-    # Quintic smoothstep function
-    smoothstep = lambda y: y ** 3 * (10.0 - 15.0 * y + 6.0 * y ** 2)
     x = np.linspace(0, 1, len(r_Mpc))
     # window = np.ones_like(x)
     # right_fraction = 1 - np.argmax(P) / len(P)
