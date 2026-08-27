@@ -448,6 +448,7 @@ def _Sigma_NFW_hollow(
         c: float | None=None,
         f_c: float | None=None,
         n_l: int=256,
+        truncated: bool=False,
 ):
     """Projected surface density of a smoothly-hollowed, virial-truncated NFW.
 
@@ -471,8 +472,9 @@ def _Sigma_NFW_hollow(
     Returns:
         Projected surface density in M_sun / (comoving Mpc)^2.
     """
+    # FIXME: The parameter truncated shows no difference
     nfw, a, M = _get_nfw_profile(
-        log10_M, z_lens, c, f_c, truncated=True, analytic=False)
+        log10_M, z_lens, c, f_c, truncated=truncated, analytic=not truncated)
 
     r_vir = MassDef200m.get_radius(Planck18, M, a) / a  # comoving Mpc
     R = np.atleast_1d(np.asarray(R, dtype=float))
