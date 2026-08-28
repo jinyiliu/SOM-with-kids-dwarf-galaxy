@@ -445,10 +445,10 @@ def _Sigma_NFW_hollow(
         log10_M: float,
         z_lens: float,
         r_hollow: float,
+        r_out: float | None=None,
         c: float | None=None,
         f_c: float | None=None,
         n_l: int=256,
-        truncated: bool=False,
 ):
     """Projected surface density of a smoothly-hollowed, virial-truncated NFW.
 
@@ -464,6 +464,7 @@ def _Sigma_NFW_hollow(
         log10_M: log10 of host halo mass M_200m in M_sun.
         z_lens: Lens redshift.
         r_hollow: Radius of the hollow core in comoving Mpc.
+        r_out: Truncating radius in comoving Mpc.
         c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
         f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
             exclusive with c.
@@ -472,18 +473,20 @@ def _Sigma_NFW_hollow(
     Returns:
         Projected surface density in M_sun / (comoving Mpc)^2.
     """
-    # FIXME: The parameter truncated shows no difference
     nfw, a, M = _get_nfw_profile(
-        log10_M, z_lens, c, f_c, truncated=truncated, analytic=not truncated)
+        log10_M, z_lens, c, f_c, truncated=False, analytic=True)
 
-    r_vir = MassDef200m.get_radius(Planck18, M, a) / a  # comoving Mpc
+    if r_out is None: # truncate at virial radius
+        r_vir = MassDef200m.get_radius(Planck18, M, a) / a  # comoving Mpc
+        r_out = r_vir
+
     R = np.atleast_1d(np.asarray(R, dtype=float))
 
     Sigma = np.zeros_like(R)
     for i, Ri in enumerate(R):
-        if Ri >= r_vir:
+        if Ri >= r_out:
             continue
-        l_max = np.sqrt(r_vir**2 - Ri**2)               # outer truncation
+        l_max = np.sqrt(r_out**2 - Ri**2)               # outer truncation
         l = np.linspace(0.0, l_max, n_l)
         r = np.sqrt(Ri**2 + l**2)
         rho = nfw.real(Planck18, r, M, a)               # 3D NFW density
@@ -543,25 +546,19 @@ def _satellite_radial_distribution(
         z_lens: Lens redshift.
         c:
         f_c:
+        density:
     """
-    nfw, a, M = _get_nfw_profile(
-        log10_M, z_lens, c, f_c, truncated=True, analytic=False)
-
     r_Mpc = np.atleast_1d(np.asarray(rp_sat, dtype=float))  # comoving Mpc
 
-    Sigma = nfw.projected(Planck18, r_Mpc, M, a)
+    a = 1. / (1. + z_lens)
+    r_vir = MassDef200m.get_radius(Planck18, 10**log10_M, a) / a # comoving Mpc
+    Sigma = _Sigma_NFW_hollow( # M_sun / (comoving Mpc)^2
+        r_Mpc, log10_M, z_lens,
+        r_hollow=0.01, r_out=r_vir,
+        c=c, f_c=f_c,
+    )
+
     P = 2 * np.pi * r_Mpc * Sigma
-
-    # Taper the large-seperation edge so that P -> 0 at the outer boundary
-    # This avoids the divergent tail of the untruncated-NFW profile
-    # (2π rp_sat x Σ_NFW), which would otherwise make the normalisation ill-defined.
-
-    x = np.linspace(0, 1, len(r_Mpc))
-    # window = np.ones_like(x)
-    # right_fraction = 1 - np.argmax(P) / len(P)
-    # right = x > 1. - right_fraction
-    # window[right] = smoothstep((1.0 - x[right]) / right_fraction)
-    # P *= window
 
     if density:
         normalization = np.trapezoid(P, r_Mpc)
@@ -574,14 +571,6 @@ def _satellite_radial_distribution(
         widths[0] = (r_Mpc[1] - r_Mpc[0]) / 2
         widths[-1] = (r_Mpc[-1] - r_Mpc[-2]) / 2
         P *= widths
-
-        window = np.ones_like(x)
-        left_fraction = np.argmax(P) / len(P)
-        left = x < left_fraction
-        window[left] = smoothstep(x[left] / left_fraction)
-
-        P *= window
-
         P /= P.sum()
 
     return P
