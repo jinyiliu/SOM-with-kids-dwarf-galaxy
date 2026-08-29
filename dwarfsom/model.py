@@ -554,8 +554,10 @@ def _satellite_radial_distribution(
     r_vir = MassDef200m.get_radius(Planck18, 10**log10_M, a) / a # comoving Mpc
     Sigma = _Sigma_NFW_hollow( # M_sun / (comoving Mpc)^2
         r_Mpc, log10_M, z_lens,
-        r_hollow=0.01, r_out=r_vir,
-        c=c, f_c=f_c,
+        r_hollow=0.01,
+        r_out=1. * r_vir,
+        c=c,
+        f_c=f_c,
     )
 
     P = 2 * np.pi * r_Mpc * Sigma
@@ -571,6 +573,17 @@ def _satellite_radial_distribution(
         widths[0] = (r_Mpc[1] - r_Mpc[0]) / 2
         widths[-1] = (r_Mpc[-1] - r_Mpc[-2]) / 2
         P *= widths
+
+        # Force a smooth truncation if needed
+        # x = (r_Mpc - r_Mpc[0]) / (r_Mpc[-1] - r_Mpc[0])
+        # x_max = x[np.argmax(P)]
+        # window = np.ones_like(x)
+        # if x_max < 1.:
+        #     right = x > x_max
+        #     window[right] = smoothstep((1. - x[right]) / (1. - x_max))
+        #
+        # P *= window
+
         P /= P.sum()
 
     return P
@@ -596,8 +609,8 @@ def compute_host_dsigma(
 
         cache = _cache_host_terms[key]
         lm_grid = cache["log10_M_host_grid"]
-        Sigma_M = cache["Sigma_M"]
-        rp_out_Mpc = cache["rp_out_Mpc"]
+        Sigma_M = cache["Sigma_M"] # M_sun / (comoving pc)^2
+        rp_out_Mpc = cache["rp_out_Mpc"] # comoving Mpc
 
         idx = np.searchsorted(lm_grid, log10_M_host) - 1
         frac = (log10_M_host - lm_grid[idx]) / (lm_grid[idx + 1] - lm_grid[idx])
@@ -690,9 +703,13 @@ def precompute_host_dsigma_terms(
 
         for i, lm in enumerate(log10_M_host_grid):
             r_vir = MassDef200m.get_radius(
-                Planck18, 10**lm, a) / a
+                Planck18, 10**lm, a
+            ) / a   # comoving Mpc
             rs_grid = np.logspace(
-                -3, np.log10(6. * r_vir), n_rs)
+                np.log10(0.01 * r_vir),
+                np.log10(1. * r_vir),
+                num=n_rs,
+            )
 
             for j, rs in enumerate(rs_grid):
                 Sigma_off_rs[j] = _Sigma_NFW_offset(
@@ -702,18 +719,22 @@ def precompute_host_dsigma_terms(
                     z_lens=z_lens,
                     c=c,
                     f_c=f_c,
-                )
+                )   # h M_sun / (comoving pc)^2
 
             P_rs = _satellite_radial_distribution(
                 rs_grid, lm, z_lens, c=c, f_c=f_c)
-            _Sigma_M = np.trapezoid(
-                P_rs[:, None] * Sigma_off_rs, rs_grid, axis=0)
-            log_Sigma = np.log10(_Sigma_M)
-            Sigma_M[i] = 10.0 ** savgol_filter(
-                log_Sigma,
-                window_length=_savgol_window,
-                polyorder=_savgol_polyorder,
-            )
+            _Sigma_M = np.sum(P_rs[:, None] * Sigma_off_rs, axis=0)
+            Sigma_M[i] = _Sigma_M
+
+            # FIXME: Adjust the smoothing window size
+            # Svitzky-Golay smoothing of log10 Sigma_M: suppress interpolation
+            # noise in the host term so the projected dSigma stays smooth
+            # log_Sigma = np.log10(_Sigma_M)
+            # Sigma_M[i] = 10.0 ** savgol_filter(
+            #     log_Sigma,
+            #     window_length=_savgol_window,
+            #     polyorder=_savgol_polyorder,
+            # )
 
         return {
             "log10_M_host_grid": log10_M_host_grid,
@@ -772,7 +793,7 @@ def compute_2h(
         log10_M_host: float | None=None,
         frac_sat: float | None=None,
 ):
-    """Precompute the 2-halo ESD for a given (z_lens, log10_M)."""
+    """Compute the 2-halo ESD for a given (z_lens, log10_M)."""
     from pyccl.halos import HaloBiasTinker10
 
     a = 1.0 / (1.0 + z_lens)
