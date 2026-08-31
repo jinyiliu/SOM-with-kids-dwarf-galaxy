@@ -787,6 +787,34 @@ def precompute_host_dsigma_terms(
         }
 
 
+def _host_halo_mass_pdf(
+        z_lens: float,
+        log10_M_star: float,
+        log10_M_host: np.ndarray,
+        dlog10_M_host: np.ndarray | None=None,
+        density: bool=False,
+):
+    """Conditonal probability of host halo mass given satellite stellar mass."""
+    from pyccl.halos import MassFuncTinker08
+
+    a = 1. / (1. + z_lens)
+    PHI_s = _satellite_CSMF(log10_M_star, log10_M_host)
+    hmf = MassFuncTinker08(mass_def=MassDef200m)
+    dndln_M_host = hmf(Planck18, h * 10 ** log10_M_host, a)
+
+    w = PHI_s * dndln_M_host * np.log(10)
+
+    if density:
+        norm = np.trapezoid(w, x=dndln_M_host)
+        return w / norm
+    else:
+        if dlog10_M_host is None:
+            raise ValueError
+        else:
+            P = w * dlog10_M_host
+            return P / P.sum()
+
+
 def _satellite_CSMF(
         log10_M_star: float,
         log10_M_host: float | np.ndarray,
