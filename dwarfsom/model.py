@@ -787,6 +787,44 @@ def precompute_host_dsigma_terms(
         }
 
 
+def _satellite_CSMF(
+        log10_M_star: float,
+        log10_M_host: float | np.ndarray,
+        gamma1: float=7.385,
+        gamma2: float=0.201,
+        log10_M0: float=10.521 - 2. * np.log10(h),
+        log10_M1: float=11.145 - 1. * np.log10(h),
+        b0: float=-0.120,
+        b1: float=1.177,
+        alpha_s: float=-0.847,
+):
+    """Satellite Conditional Stellar Mass Function.
+
+    A modified Schechter function is used for satellite CSMF.
+
+
+    Returns:
+        Average number of galaxies of stellar mass log10_M_star that resides in
+        a halo mass of log10_M_host.
+    """
+    M_star = 10 ** log10_M_star
+    log10_M_host_grid = np.atleast_1d(log10_M_host)
+    M_host_grid = 10 ** log10_M_host_grid
+
+
+    M0 = 10 ** log10_M0
+    M1 = 10 ** log10_M1
+    M_c = M0 * (M_host_grid / M1)**gamma1 / (1 + M_host_grid / M1)**(gamma1 - gamma2)
+    M_s = 0.56 * M_c
+    log10_phi_s = b0 + b1 * (log10_M_host_grid - 13. + np.log10(h))
+    phi_s = 10 ** log10_phi_s
+
+    PHI_s = (M_star / M_s)**alpha_s * np.exp(-(M_star / M_s)**2)
+    PHI_s *= phi_s / M_s
+    return PHI_s
+
+
+
 def compute_2h(
         z_lens,
         log10_M,
