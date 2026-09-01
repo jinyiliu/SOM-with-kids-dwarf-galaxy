@@ -58,17 +58,35 @@ def DSigmaModel(
         frac_sat: float,
         log10_M_star: float,
         tau: float | None=None,
-        alpha: float | None=None,
-        log10_M0: float | None=None,
-        log10_M1: float | None=None,
         log10_M_host: float | None=None,
+        use_single_halo: bool=False,
         return_components: bool=False,
 ):
     ds_1h_cm = DSigma_1h_cm(rp, log10_M, z_lens, f_c=f_c)
     ds_1h_sm_sub = DSigma_1h_sm_sub(rp, log10_M, z_lens, f_c=1., tau=tau)
-    ds_1h_sm_host = DSigma_1h_sm_host(rp, z_lens, f_c=1., alpha=alpha,
-        log10_M0=log10_M0, log10_M1=log10_M1, log10_M_host=log10_M_host)
-    ds_2h = DSigma_2h(rp, log10_M, z_lens, log10_M_host, frac_sat)
+    ds_1h_sm_host = DSigma_1h_sm_host(
+        rp, z_lens,
+        f_c=1.,
+        log10_M_star=log10_M_star,
+        log10_M_host=log10_M_host,
+        use_single_halo=use_single_halo,
+    )
+
+    if use_single_halo:
+        raise ValueError(
+            "log10_M_host must be provided when use_single_halo=True"
+        )
+    else:
+        key = (z_lens, None, f_c, log10_M_star)
+        if key not in _cache_host_terms:
+            _cache_host_terms[key] = (
+                precompute_host_dsigma_terms(
+                    z_lens, None, f_c, n_rs=70, use_single_halo=False
+                )
+            )
+        log10_M_host_mean = _cache_host_terms[key]["log10_M_host_mean"]
+
+    ds_2h = DSigma_2h(rp, log10_M, z_lens, log10_M_host_mean, frac_sat)
     ds_star = DSigma_star(rp, log10_M_star)
     ds_total = (
             ds_star +
@@ -191,6 +209,7 @@ def DSigma_1h_sm_host(
         f_c: float | None=None,
         log10_M_star: float | None=None,
         log10_M_host: float | None=None,
+        use_single_halo: bool=False,
 ):
     """Host halo contribution to satellite-matter ESD.
 
@@ -208,9 +227,10 @@ def DSigma_1h_sm_host(
             exclusive with c.
         log10_M_star: Satellite stellar mass.
         log10_M_host: Host halo mass.
+        use_single_halo:
     """
     rp_grid, ds_grid = compute_host_dsigma(
-        z_lens, c, f_c, log10_M_star, log10_M_host)
+        z_lens, c, f_c, log10_M_star, log10_M_host, use_single_halo)
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
@@ -726,6 +746,7 @@ def precompute_host_dsigma_terms(
 
         return {
             "log10_M_host": log10_M_host,
+            "log10_M_host_mean": np.average(log10_M_host, weights=P),
             "dlog10_M_host": dlog10_M_host,
             "P_log10_M_host": P,
             "rs_grid_M_host": rs_grid_M_host,
