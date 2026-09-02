@@ -1,5 +1,7 @@
 import os
 import pickle as pk
+import warnings
+
 import numpy as np
 import pyccl as ccl
 from pyccl.halos import (
@@ -57,6 +59,7 @@ def DSigmaModel(
         f_c: float,
         frac_sat: float,
         log10_M_star: float,
+        R: float=1.,
         tau: float | None=None,
         log10_M_host: float | None=None,
         use_single_halo: bool=False,
@@ -67,6 +70,7 @@ def DSigmaModel(
     ds_1h_sm_host = DSigma_1h_sm_host(
         rp, z_lens,
         f_c=1.,
+        R=R,
         log10_M_star=log10_M_star,
         log10_M_host=log10_M_host,
         use_single_halo=use_single_halo,
@@ -207,6 +211,7 @@ def DSigma_1h_sm_host(
         z_lens: float,
         c: float | None=None,
         f_c: float | None=None,
+        R: float=1.,
         log10_M_star: float | None=None,
         log10_M_host: float | None=None,
         use_single_halo: bool=False,
@@ -225,12 +230,13 @@ def DSigma_1h_sm_host(
         c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
         f_c: Amplitude scaling of the Duffy2008 c(M,z) relation. Mutually
             exclusive with c.
+        R: Concentration ratio between the satellite distribution and
         log10_M_star: Satellite stellar mass.
         log10_M_host: Host halo mass.
         use_single_halo:
     """
     rp_grid, ds_grid = compute_host_dsigma(
-        z_lens, c, f_c, log10_M_star, log10_M_host, use_single_halo)
+        z_lens, c, f_c, R, log10_M_star, log10_M_host, use_single_halo)
     return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
 
 
@@ -568,6 +574,7 @@ def _satellite_radial_distribution(
 
 def compute_host_dsigma(
         z_lens, c, f_c,
+        R: float=1.,
         log10_M_star: float | None=None,
         log10_M_host: float | None=None,
         use_single_halo: bool=False,
@@ -577,6 +584,13 @@ def compute_host_dsigma(
         if log10_M_host is None:
             raise ValueError(
                 "log10_M_host must be provided when use_single_halo=True.")
+
+        if R is not None:
+            warnings.warn(
+                "R is only supported when use_single_halo=False for now. "
+                "Ignoring R in the following calculations.",
+                UserWarning
+            )
 
         key = (z_lens, c, f_c)
         if key not in _cache_host_terms:
@@ -620,7 +634,7 @@ def compute_host_dsigma(
         for i, lm in enumerate(log10_M_host):
             # Satellite radial distribution given halo mass
             P_rs = _satellite_radial_distribution(
-                rs_grid_M_host[i], lm, z_lens, c=c, f_c=f_c,
+                rs_grid_M_host[i], lm, z_lens, c=c, f_c=R,
             )
             Sigma_rs = Sigma_M_host_rs[i]  # shape (n_rs, len(rp_out))
 
@@ -644,7 +658,7 @@ def compute_host_dsigma(
 def precompute_host_dsigma_terms(
         z_lens, c, f_c,
         log10_M_star: float | None=None,
-        n_rs: int=150,
+        n_rs: int=70,
         log10_M_host_min: float=12.,
         log10_M_host_max: float=16.,
         n_log10_M_host: int=50,
