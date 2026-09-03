@@ -237,7 +237,10 @@ def DSigma_1h_sm_host(
     """
     rp_grid, ds_grid = compute_host_dsigma(
         z_lens, c, f_c, R, log10_M_star, log10_M_host, use_single_halo)
-    return np.interp(np.atleast_1d(rp), rp_grid, ds_grid)
+    return interp1d(
+        rp_grid, ds_grid, kind="cubic",
+        bounds_error=False, fill_value=(ds_grid[0], ds_grid[-1]),
+    )(rp)
 
 
 def DSigma_2h(
@@ -350,7 +353,10 @@ def _Sigma_NFW_offset(
         for r in r_fine
     ])  # M_sun / (comoving Mpc)^2
     Sigma_fine = Sigma_fine / 1.e12 / h # h M_sun / (comoving pc)^2
-    return np.interp(rp, r_fine, Sigma_fine)
+    return interp1d(
+        r_fine, Sigma_fine, kind="cubic",
+        bounds_error=False, fill_value=(Sigma_fine[0], Sigma_fine[-1]),
+    )(rp)
 
 
 def _get_nfw_profile(
@@ -580,6 +586,9 @@ def compute_host_dsigma(
         use_single_halo: bool=False,
 ):
     """Precompute the host halo ESD contribution for given z_lens."""
+    # FIXME: Include n_rs in the function parameters
+    n_rs = 70
+
     if use_single_halo:
         if log10_M_host is None:
             raise ValueError(
@@ -595,8 +604,11 @@ def compute_host_dsigma(
         key = (z_lens, c, f_c)
         if key not in _cache_host_terms:
             _cache_host_terms[key] = precompute_host_dsigma_terms(
-                z_lens, c, f_c, n_rs=70,
-                n_log10_M_host=100, use_single_halo=True)
+                z_lens, c, f_c,
+                n_rs=n_rs,
+                n_log10_M_host=100,
+                use_single_halo=True,
+            )
 
         cache = _cache_host_terms[key]
         lm_grid = cache["log10_M_host_grid"]
@@ -617,7 +629,7 @@ def compute_host_dsigma(
         if key not in _cache_host_terms:
             _cache_host_terms[key] = (
                 precompute_host_dsigma_terms(
-                    z_lens, c, f_c, n_rs=70, use_single_halo=False
+                    z_lens, c, f_c, n_rs=n_rs, use_single_halo=False
                 )
             )
 
@@ -786,7 +798,7 @@ def _host_halo_mass_pdf(
     w = PHI_s * dndln_M_host * np.log(10)
 
     if density:
-        norm = np.trapezoid(w, x=dndln_M_host)
+        norm = np.trapezoid(w, x=log10_M_host)
         return w / norm
     else:
         if dlog10_M_host is None:
