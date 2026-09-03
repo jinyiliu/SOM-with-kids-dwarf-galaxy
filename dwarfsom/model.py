@@ -633,25 +633,17 @@ def compute_host_dsigma(
                 )
             )
 
-        log10_M_host = _cache_host_terms[key]["log10_M_host"]
-        dlog10_M_host = _cache_host_terms[key]["dlog10_M_host"]
-        P_M_host = _cache_host_terms[key]["P_log10_M_host"]
-        rs_grid_M_host = _cache_host_terms[key]["rs_grid_M_host"]
-        Sigma_M_host_rs = _cache_host_terms[key]["Sigma_M_host_rs"]
+        R_grid = _cache_host_terms[key]["R_grid"]
+        Sigma_R = _cache_host_terms[key]["Sigma_R"]
+        result_Sigma = 10 ** interp1d(
+            np.log10(R_grid), np.log10(Sigma_R),
+            axis=0,
+            kind="linear",
+            bounds_error=False,
+            fill_value="extrapolate",
+        )(np.log10(R))
 
         rp_out_Mpc = np.logspace(-5, 2, 100)  # comoving Mpc
-        result_Sigma = np.zeros(len(rp_out_Mpc))
-
-        # Loop over host halo mass
-        for i, lm in enumerate(log10_M_host):
-            # Satellite radial distribution given halo mass
-            P_rs = _satellite_radial_distribution(
-                rs_grid_M_host[i], lm, z_lens, c=c, f_c=R,
-            )
-            Sigma_rs = Sigma_M_host_rs[i]  # shape (n_rs, len(rp_out))
-
-            result_Sigma += P_M_host[i] * \
-                np.sum(P_rs[:, None] * Sigma_rs, axis=0)
 
 
     # --- Σ̄ → ΔΣ (shared pipeline) ---
@@ -734,16 +726,19 @@ def precompute_host_dsigma_terms(
     else: # Average over HMF and HOD
         from pyccl.halos import MassFuncTinker08
 
+        # Concentration ratio grid
+        R_grid = np.linspace(0.01, 1.2, 300)
+
         # Host halo mass grid
         _log10_M_host = np.linspace(start=11., stop=17., num=100)
         log10_M_host = 0.5 * (_log10_M_host[1:] + _log10_M_host[:-1])
         dlog10_M_host = _log10_M_host[1:] - _log10_M_host[:-1]
 
         # Probability of host halo mass provided the stellar mass
-        P = _host_halo_mass_pdf(z_lens, log10_M_star, log10_M_host, dlog10_M_host)
+        P_log10_M_host = _host_halo_mass_pdf(z_lens, log10_M_star, log10_M_host, dlog10_M_host)
 
         # Surface density of parameters (M_host, rs)
-        Sigma_M_rs = np.zeros(shape=(
+        Sigma_M_host_rs = np.zeros(shape=(
             len(log10_M_host), n_rs, len(rp_out_Mpc)
         ))
         rs_grid_M_host = np.zeros(shape=(len(log10_M_host), n_rs))
@@ -768,15 +763,35 @@ def precompute_host_dsigma_terms(
                     c=c,
                     f_c=f_c,
                 )  # h M_sun / (comoving pc)^2
-                Sigma_M_rs[i, j] = Sigma
+                Sigma_M_host_rs[i, j] = Sigma
+
+        Sigma_R = np.zeros(
+            (len(R_grid), len(rp_out_Mpc))
+        )
+        for i, R in enumerate(R_grid):
+            result_Sigma = np.zeros(len(rp_out_Mpc))
+
+            for j, lm in enumerate(log10_M_host):
+                # Satellite radial distribution given halo mass
+                P_rs = _satellite_radial_distribution(
+                    rs_grid_M_host[j], lm, z_lens, c=c, f_c=R,
+                )
+                Sigma_rs = Sigma_M_host_rs[j]  # shape (n_rs, len(rp_out_Mpc))
+
+                result_Sigma += P_log10_M_host[j] * \
+                    np.sum(P_rs[:, None] * Sigma_rs, axis=0)
+
+            Sigma_R[i] = result_Sigma
 
         return {
             "log10_M_host": log10_M_host,
-            "log10_M_host_mean": np.average(log10_M_host, weights=P),
+            "log10_M_host_mean": np.average(log10_M_host, weights=P_log10_M_host),
             "dlog10_M_host": dlog10_M_host,
-            "P_log10_M_host": P,
+            "P_log10_M_host": P_log10_M_host,
             "rs_grid_M_host": rs_grid_M_host,
-            "Sigma_M_host_rs": Sigma_M_rs,
+            "Sigma_M_host_rs": Sigma_M_host_rs,
+            "R_grid": R_grid,
+            "Sigma_R": Sigma_R,
         }
 
 
