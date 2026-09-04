@@ -724,7 +724,7 @@ def precompute_host_dsigma_terms(
         }
 
     else: # Average over HMF and HOD
-        from pyccl.halos import MassFuncTinker08
+        from pyccl.halos import MassFuncTinker10
 
         # Concentration ratio grid
         R_grid = np.linspace(0.01, 1.2, 300)
@@ -803,11 +803,11 @@ def _host_halo_mass_pdf(
         density: bool=False,
 ):
     """Conditonal probability of host halo mass given satellite stellar mass."""
-    from pyccl.halos import MassFuncTinker08
+    from pyccl.halos import MassFuncTinker10
 
     a = 1. / (1. + z_lens)
     PHI_s = _satellite_CSMF(log10_M_star, log10_M_host)
-    hmf = MassFuncTinker08(mass_def=MassDef200m)
+    hmf = MassFuncTinker10(mass_def=MassDef200m)
     dndln_M_host = hmf(Planck18, h * 10 ** log10_M_host, a)
 
     w = PHI_s * dndln_M_host * np.log(10)
@@ -826,13 +826,24 @@ def _host_halo_mass_pdf(
 def _satellite_CSMF(
         log10_M_star: float,
         log10_M_host: float | np.ndarray,
-        gamma1: float=7.385,
+
+        # Dvornik et al. (2023) MAP+PJ-HPD
+        # gamma1: float=7.385,
+        # gamma2: float=0.201,
+        # log10_M0: float=10.521 - 2. * np.log10(h),
+        # log10_M1: float=11.145 - 1. * np.log10(h),
+        # b0: float=-0.120,
+        # b1: float=1.17,
+        # alpha_s: float=-0.847,
+
+        # Dvornik et al. (2023) MMAX
+        gamma1: float=7.096,
         gamma2: float=0.201,
-        log10_M0: float=10.521 - 2. * np.log10(h),
-        log10_M1: float=11.145 - 1. * np.log10(h),
-        b0: float=-0.120,
-        b1: float=1.177,
-        alpha_s: float=-0.847,
+        log10_M0: float=10.519 - 2. * np.log10(h),
+        log10_M1: float=11.138 - 1. * np.log10(h),
+        b0: float=-0.024,
+        b1: float=1.149,
+        alpha_s: float=-0.858,
 ):
     """Satellite Conditional Stellar Mass Function.
 
