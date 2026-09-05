@@ -467,13 +467,8 @@ def _Sigma_BMO_offset(
         z_lens: float,
         c: float | None=None,
         f_c: float | None=None,
-        tau: float | None=None,
 ):
     """Off-centre BMO (truncated NFW) surface density.
-
-    Surface density Sigma at projected separation `rp` from a satellite
-    offset by `rp_sat` from the host BMO profile centre, azimuthally averaged
-    over phi. Uses the same M0/r_s/tau convention as DSigma_1h_sm_sub.
 
     Args:
         rp: Projected separations in comoving Mpc/h.
@@ -482,7 +477,6 @@ def _Sigma_BMO_offset(
         rp_sat: Projected offset of satellite from host centre in Mpc/h.
         c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
         f_c: Duffy08 amplitude. Mutually exclusive with c.
-        tau: r_t / r_s (dimensionless truncation). Default: 2.5.
 
     Returns:
         Surface density in h M_sun / (comoving pc)^2.
@@ -501,7 +495,7 @@ def _Sigma_BMO_offset(
         conc_val = float(conc(Planck18, M, a))
 
     r_s = r_vir / conc_val                              # comoving Mpc
-    tau_val = 2.5 if tau is None else tau
+    tau_val = conc_val
 
     # M0 = M / f(c) to convert M_200m to M0 (same as DSigma_1h_sm_sub)
     M0 = M / (np.log(1 + conc_val) - conc_val / (1 + conc_val))
@@ -829,7 +823,7 @@ def precompute_host_dsigma_terms(
             )  # comoving Mpc
 
             for j, rs in enumerate(rs_grid_M_host[i]):
-                Sigma = _Sigma_NFW_offset(
+                Sigma = _Sigma_BMO_offset(
                     rp=rp_out_Mpc * h,  # comoving Mpc/h
                     rp_sat=rs * h,  # comoving Mpc/h
                     log10_M=lm,
