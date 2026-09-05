@@ -460,6 +460,80 @@ def _Sigma_BMO(R: np.ndarray, M0: float, rs: float, tau: float):
     return pref * (term1 + term2 + term3 + term4)   # M_sun / (comoving Mpc)^2
 
 
+def _Sigma_BMO_offset(
+        rp: np.ndarray,
+        rp_sat: float,
+        log10_M: float,
+        z_lens: float,
+        c: float | None=None,
+        f_c: float | None=None,
+        tau: float | None=None,
+):
+    """Off-centre BMO (truncated NFW) surface density.
+
+    Surface density Sigma at projected separation `rp` from a satellite
+    offset by `rp_sat` from the host BMO profile centre, azimuthally averaged
+    over phi. Uses the same M0/r_s/tau convention as DSigma_1h_sm_sub.
+
+    Args:
+        rp: Projected separations in comoving Mpc/h.
+        log10_M: log10 of host halo mass M_200m in M_sun.
+        z_lens: Lens redshift.
+        rp_sat: Projected offset of satellite from host centre in Mpc/h.
+        c: Concentration (r_200m / r_s). Mutually exclusive with f_c.
+        f_c: Duffy08 amplitude. Mutually exclusive with c.
+        tau: r_t / r_s (dimensionless truncation). Default: 2.5.
+
+    Returns:
+        Surface density in h M_sun / (comoving pc)^2.
+    """
+    if (c is None) == (f_c is None):
+        raise ValueError("Provide exactly one of: c or f_c.")
+
+    a = 1.0 / (1.0 + z_lens)
+    M = 10.0 ** log10_M
+    r_vir = MassDef200m.get_radius(Planck18, M, a) / a  # comoving Mpc
+
+    if c is not None:
+        conc_val = c
+    else:
+        conc = ConcentrationDuffy08(fc_bar=f_c, mass_def=MassDef200m)
+        conc_val = float(conc(Planck18, M, a))
+
+    r_s = r_vir / conc_val                              # comoving Mpc
+    tau_val = 2.5 if tau is None else tau
+
+    # M0 = M / f(c) to convert M_200m to M0 (same as DSigma_1h_sm_sub)
+    M0 = M / (np.log(1 + conc_val) - conc_val / (1 + conc_val))
+
+    rp = np.atleast_1d(np.asarray(rp, dtype=float)) / h   # comoving Mpc
+    rp_sat = rp_sat / h
+
+    if rp_sat == 0:
+        return _Sigma_BMO(rp, M0, r_s, tau_val) / 1.e12 / h
+
+    _n_fine = max(300, 4 * len(rp))
+    _r_min = max(np.min(rp) * 0.3, 1e-5)
+    _r_max = max(np.max(rp) * 1.5, rp_sat + np.max(rp))
+    r_fine = np.logspace(np.log10(_r_min), np.log10(_r_max), _n_fine)
+
+    n_phi = 160
+    phi = np.linspace(0, 2 * np.pi, n_phi)
+
+    Sigma_fine = np.array([
+        np.mean(_Sigma_BMO(
+            np.sqrt(rp_sat**2 + r**2 + 2 * rp_sat * r * np.cos(phi)),
+            M0, r_s, tau_val,
+        ))
+        for r in r_fine
+    ])                                                  # M_sun / (comoving Mpc)^2
+    Sigma_fine = Sigma_fine / 1.e12 / h                 # h M_sun / (comoving pc)^2
+    return interp1d(
+        r_fine, Sigma_fine, kind="cubic",
+        bounds_error=False, fill_value=(Sigma_fine[0], Sigma_fine[-1]),
+    )(rp)
+
+
 def _Sigma_NFW_hollow(
         R: np.ndarray,
         log10_M: float,
