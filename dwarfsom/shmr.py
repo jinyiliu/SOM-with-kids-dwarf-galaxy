@@ -107,3 +107,22 @@ class Hudson2015(SHMR):
         log10_M1 = cls.log10_M0p5 + (z - 0.5) * cls.Mz
         x = (10 ** np.asarray(log10_M, dtype=float)) / (10 ** log10_M1)
         return np.log10(2.0 * f1 / (x ** (-cls.beta) + x ** cls.gamma))
+
+
+class Moster2010(SHMR):
+    ratio_0 = 0.02820
+    log10_M1 = 11.884
+    beta = 1.057
+    gamma = 0.556
+    label = "Moster et al. (2010)"
+    data = "SDSS + Millennium"
+    method = "AM"  # Abundance matching
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
+        x = (10 ** np.asarray(log10_M, dtype=float)) / (10 ** cls.log10_M1)
+        return np.log10(
+            2.0 * cls.ratio_0 / (x ** (-cls.beta) + x ** cls.gamma)
+        )
+
+
