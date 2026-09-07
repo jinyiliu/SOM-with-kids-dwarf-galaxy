@@ -823,7 +823,7 @@ def precompute_host_dsigma_terms(
             )  # comoving Mpc
 
             for j, rs in enumerate(rs_grid_M_host[i]):
-                Sigma = _Sigma_BMO_offset(
+                Sigma = _Sigma_NFW_offset(
                     rp=rp_out_Mpc * h,  # comoving Mpc/h
                     rp_sat=rs * h,  # comoving Mpc/h
                     log10_M=lm,
@@ -975,10 +975,10 @@ def compute_2h(
     xi_lin = np.trapezoid(integrand, k, axis=0) / (2 * np.pi**2)   # dimensionless
 
     # Tinker 2005 scale-dependent bias correction
-    # eta = (1 + 1.17 * xi_lin)**1.49 / (1 + 0.69 * xi_lin)**2.09
+    eta = (1 + 1.17 * xi_lin)**1.49 / (1 + 0.69 * xi_lin)**2.09
 
     # Galaxy-matter correlation
-    xi_gm = b_h * xi_lin
+    xi_gm = b_h * xi_lin * eta
 
     # Create a log-space linear interpolator
     xi_interp = interp1d(
