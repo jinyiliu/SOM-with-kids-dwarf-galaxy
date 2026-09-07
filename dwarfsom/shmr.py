@@ -88,3 +88,22 @@ class Dvornik2020(SHMR):
             log10_M / cls.beta + cls.gamma / np.log(10)
         )
         return log10_M_star - log10_M
+
+
+class Hudson2015(SHMR):
+    f0p5 = 0.034
+    fz = 0.03
+    log10_M0p5 = 12.5
+    Mz = 0.4
+    beta = 0.55
+    gamma = 0.8
+    label = "Hudson et al. (2015)"
+    data = "CFHTLenS (Blue)"
+    method = "GGL"
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
+        f1 = cls.f0p5 + (z - 0.5) * cls.fz
+        log10_M1 = cls.log10_M0p5 + (z - 0.5) * cls.Mz
+        x = (10 ** np.asarray(log10_M, dtype=float)) / (10 ** log10_M1)
+        return np.log10(2.0 * f1 / (x ** (-cls.beta) + x ** cls.gamma))
