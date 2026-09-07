@@ -15,6 +15,28 @@ class SHMR:
     pass
 
 
+class Girelli2020(SHMR):
+    B, mu = 11.79, 0.20
+    C, nu = 0.046, -0.38
+    D, eta = 0.709, -0.18
+    F, E = 0.043, 0.96
+    label = "Girelli et al. (2020)"
+    data = "COSMOS + DUSTGRAIN"
+    method = "AM"  # Abundance matching
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
+        log10_MA = cls.B + cls.mu * z
+        A = cls.C * (1.0 + z) ** cls.nu
+        gamma = cls.D * (1.0 + z) ** cls.eta
+        beta = cls.E + cls.F * z
+
+        x = (10 ** np.asarray(log10_M, dtype=float)) / (10 ** log10_MA)
+        ratio = 2.0 * A / (x ** (-beta) + x ** gamma)
+        return np.log10(ratio)
+
+
+
 class VanUitert2016(SHMR):
     log10_M0 = 10.58 - 2 * np.log10(h)
     log10_M1 = 10.97 - 1 * np.log10(h)
