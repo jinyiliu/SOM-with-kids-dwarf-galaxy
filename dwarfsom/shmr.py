@@ -63,6 +63,7 @@ class Dvornik2023(SHMR):
     gamma2 = 0.201
     label = "Dvornik+23"
     data = "KiDS + GAMA"
+    method = "SMF + GGL + clustering"
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -98,7 +99,7 @@ class Hudson2015(SHMR):
     beta = 0.55
     gamma = 0.8
     label = "Hudson+15"
-    data = "CFHTLenS (Blue)"
+    data = "CFHTLenS"
     method = "GGL"
 
     @classmethod
@@ -150,8 +151,8 @@ class Zu2015(SHMR):
     delta = 0.42
     gamma = 1.21
     label = "Zu+15"
-    data = "SDSS DR7"
-    method = "iHOD (clustering + GGL)"
+    data = "SDSS"
+    method = "GGL + clustering"
 
     @classmethod
     def log10_M(cls, log10_M_star):
@@ -186,7 +187,7 @@ class Behroozi2019(SHMR):
     DELTA = 0.410851
     GAMMA, GAMMA_A, GAMMA_Z = -1.034197, -3.100399, -1.054511
     label = "Behroozi+19"
-    data = "Bolshoi-Planck + obs"
+    data = "UniverseMachine"
     method = "EM"
 
     @classmethod
@@ -221,8 +222,8 @@ class Yang2012(SHMR):
     alpha = 0.29
     beta = 8.15
     label = "Yang+12"
-    data = "SDSS DR7 (groups)"
-    method = "CSMF (SMF + CSMF + 2PCF)"
+    data = "SDSS"
+    method = "SMF + clustering"  # FIXME
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -246,8 +247,8 @@ class Shao2026(SHMR):
     sigma_l = 0.68
     sigma_p = 0.17
     label = "Shao+26"
-    data = "DESI DR1"
-    method = "HOD (wp + dSigma + Nsat) + SMF"
+    data = "DESI"
+    method = "SMF + GGL + clustering"
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
