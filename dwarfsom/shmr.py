@@ -23,6 +23,7 @@ class Girelli2020(SHMR):
     label = "Girelli+20"
     data = "COSMOS + DUSTGRAIN"
     method = "AM"  # Abundance matching
+    min_log10_M = 10.4
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
@@ -44,6 +45,7 @@ class VanUitert2016(SHMR):
     beta2 = 0.25
     label = "van Uitert+16"
     data = "KiDS + GAMA"
+    min_log10_M = 11.0
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -64,6 +66,7 @@ class Dvornik2023(SHMR):
     label = "Dvornik+23"
     data = "KiDS + GAMA"
     method = "SMF + GGL + clustering"
+    min_log10_M = 11.0
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -82,6 +85,7 @@ class Dvornik2020(SHMR):
     beta = -2.95
     label = "Dvornik+20"
     data = "KiDS + GAMA"
+    min_log10_M = 10.5
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -101,6 +105,7 @@ class Hudson2015(SHMR):
     label = "Hudson+15"
     data = "CFHTLenS"
     method = "GGL"
+    min_log10_M = 11.3
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
@@ -118,6 +123,7 @@ class Moster2010(SHMR):
     label = "Moster+10"
     data = "SDSS + Millennium"
     method = "AM"  # Abundance matching
+    min_log10_M = 10.5
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -136,6 +142,7 @@ class Moster2018(SHMR):
     label = "Moster+18"
     data = "EMERGE"
     method = "EM" # Emperical model
+    min_log10_M = 10.3
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -153,6 +160,7 @@ class Zu2015(SHMR):
     label = "Zu+15"
     data = "SDSS"
     method = "GGL + clustering"
+    min_log10_M = 11.1
 
     @classmethod
     def log10_M(cls, log10_M_star):
@@ -189,6 +197,7 @@ class Behroozi2019(SHMR):
     label = "Behroozi+19"
     data = "UniverseMachine"
     method = "EM"
+    min_log10_M = 10.5
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
@@ -224,6 +233,7 @@ class Yang2012(SHMR):
     label = "Yang+12"
     data = "SDSS"
     method = "SMF + clustering"  # FIXME
+    min_log10_M = 11.1
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -249,6 +259,7 @@ class Shao2026(SHMR):
     label = "Shao+26"
     data = "DESI"
     method = "SMF + GGL + clustering"
+    min_log10_M = 10.5
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
