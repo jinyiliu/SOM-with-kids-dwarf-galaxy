@@ -20,7 +20,7 @@ class Girelli2020(SHMR):
     C, nu = 0.046, -0.38
     D, eta = 0.709, -0.18
     F, E = 0.043, 0.96
-    label = "Girelli et al. (2020)"
+    label = "Girelli+20"
     data = "COSMOS + DUSTGRAIN"
     method = "AM"  # Abundance matching
 
@@ -42,7 +42,7 @@ class VanUitert2016(SHMR):
     log10_M1 = 10.97 - 1 * np.log10(h)
     beta1 = 7.5
     beta2 = 0.25
-    label = "van Uitert et al. (2016)"
+    label = "van Uitert+16"
     data = "KiDS + GAMA"
 
     @classmethod
@@ -61,7 +61,7 @@ class Dvornik2023(SHMR):
     log10_M1 = 11.145 - 1 * np.log10(h)
     gamma1 = 7.385
     gamma2 = 0.201
-    label = "Dvornik et al. (2023)"
+    label = "Dvornik+23"
     data = "KiDS + GAMA"
 
     @classmethod
@@ -79,7 +79,7 @@ class Dvornik2020(SHMR):
     alpha = 12.
     gamma = 10.08
     beta = -2.95
-    label = "Dvornik et al. (2020)"
+    label = "Dvornik+20"
     data = "KiDS + GAMA"
 
     @classmethod
@@ -97,7 +97,7 @@ class Hudson2015(SHMR):
     Mz = 0.4
     beta = 0.55
     gamma = 0.8
-    label = "Hudson et al. (2015)"
+    label = "Hudson+15"
     data = "CFHTLenS (Blue)"
     method = "GGL"
 
@@ -114,7 +114,7 @@ class Moster2010(SHMR):
     log10_M1 = 11.884
     beta = 1.057
     gamma = 0.556
-    label = "Moster et al. (2010)"
+    label = "Moster+10"
     data = "SDSS + Millennium"
     method = "AM"  # Abundance matching
 
@@ -132,7 +132,7 @@ class Moster2018(SHMR):
     epsN = 0.15
     beta = 1.78
     gamma = 0.57
-    label = "EMERGE (Moster et al. 2018)"
+    label = "Moster+18"
     data = "EMERGE"
     method = "EM" # Emperical model
 
@@ -149,7 +149,7 @@ class Zu2015(SHMR):
     beta = 0.33
     delta = 0.42
     gamma = 1.21
-    label = "Zu & Mandelbaum (2015)"
+    label = "Zu+15"
     data = "SDSS DR7"
     method = "iHOD (clustering + GGL)"
 
@@ -185,7 +185,7 @@ class Behroozi2019(SHMR):
     BETA, BETA_A, BETA_Z = 0.481788, -0.840580, -0.470653
     DELTA = 0.410851
     GAMMA, GAMMA_A, GAMMA_Z = -1.034197, -3.100399, -1.054511
-    label = "UniverseMachine (Behroozi et al. 2019)"
+    label = "Behroozi+19"
     data = "Bolshoi-Planck + obs"
     method = "EM"
 
@@ -220,7 +220,7 @@ class Yang2012(SHMR):
     log10_M1 = 10.69 - 1.0 * np.log10(h)
     alpha = 0.29
     beta = 8.15
-    label = "Yang et al. (2012)"
+    label = "Yang+12"
     data = "SDSS DR7 (groups)"
     method = "CSMF (SMF + CSMF + 2PCF)"
 
@@ -245,7 +245,7 @@ class Shao2026(SHMR):
     delta = 1.03
     sigma_l = 0.68
     sigma_p = 0.17
-    label = "Shao et al. (2026)"
+    label = "Shao+26"
     data = "DESI DR1"
     method = "HOD (wp + dSigma + Nsat) + SMF"
 
