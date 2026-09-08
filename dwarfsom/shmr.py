@@ -126,3 +126,20 @@ class Moster2010(SHMR):
         )
 
 
+class Moster2018(SHMR):
+    fb = 0.156
+    log10_M1 = 11.78
+    epsN = 0.15
+    beta = 1.78
+    gamma = 0.57
+    label = "EMERGE (Moster et al. 2018)"
+    data = "EMERGE"
+    method = "EM" # Emperical model
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
+        x = (10 ** np.asarray(log10_M, dtype=float)) / (10 ** cls.log10_M1)
+        eps = 2.0 * cls.epsN / (x ** (-cls.beta) + x ** cls.gamma)
+        return np.log10(cls.fb * eps)
+
+
