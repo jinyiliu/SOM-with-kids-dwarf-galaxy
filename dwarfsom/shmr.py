@@ -178,3 +178,61 @@ class Zu2015(SHMR):
         return log10_M_star - log10_M
 
 
+class Behroozi2019(SHMR):
+    EFF_0, EFF_0_A, EFF_0_A2, EFF_0_Z = -1.434595, 1.831346, 1.368294, -0.216943
+    M_1, M_1_A, M_1_A2, M_1_Z = 12.03538, 4.556205, 4.417054, -0.731372
+    ALPHA, ALPHA_A, ALPHA_A2, ALPHA_Z = 1.963342, -2.315609, -1.732084, 0.177598
+    BETA, BETA_A, BETA_Z = 0.481788, -0.840580, -0.470653
+    DELTA = 0.410851
+    GAMMA, GAMMA_A, GAMMA_Z = -1.034197, -3.100399, -1.054511
+    label = "UniverseMachine (Behroozi et al. 2019)"
+    data = "Bolshoi-Planck + obs"
+    method = "EM"
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
+        a = 1.0 / (1.0 + z)
+        a1 = a - 1.0
+        lna = np.log(a)
+
+        logM1 = (
+            cls.M_1 + a1 * cls.M_1_A - lna * cls.M_1_A2 + z * cls.M_1_Z
+        )
+        alpha = (
+            cls.ALPHA + a1 * cls.ALPHA_A - lna * cls.ALPHA_A2 + z * cls.ALPHA_Z
+        )
+        beta = cls.BETA + a1 * cls.BETA_A + z * cls.BETA_Z
+        delta = cls.DELTA
+        gamma = 10.0 ** (cls.GAMMA + a1 * cls.GAMMA_A + z * cls.GAMMA_Z)
+
+        x = np.asarray(log10_M, dtype=float) - logM1
+        logMstar = (
+            logM1 + cls.EFF_0 + a1 * cls.EFF_0_A
+            - lna * cls.EFF_0_A2 + z * cls.EFF_0_Z
+            - np.log10(10.0 ** (-alpha * x) + 10.0 ** (-beta * x))
+            + gamma * np.exp(-0.5 * (x / delta) ** 2)
+        )
+        return logMstar - np.asarray(log10_M, dtype=float)
+
+
+class Yang2012(SHMR):
+    log10_M0 = 10.19 - 2.0 * np.log10(h)
+    log10_M1 = 10.69 - 1.0 * np.log10(h)
+    alpha = 0.29
+    beta = 8.15
+    label = "Yang et al. (2012)"
+    data = "SDSS DR7 (groups)"
+    method = "CSMF (SMF + CSMF + 2PCF)"
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
+        M = 10 ** np.asarray(log10_M, dtype=float)
+        M1 = 10 ** cls.log10_M1
+        log10_M_star = (
+            cls.log10_M0
+            + (cls.alpha + cls.beta) * np.log10(M / M1)
+            - cls.beta * np.log10(1.0 + M / M1)
+        )
+        return log10_M_star - np.asarray(log10_M, dtype=float)
+
+
