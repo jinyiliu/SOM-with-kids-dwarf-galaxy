@@ -143,3 +143,38 @@ class Moster2018(SHMR):
         return np.log10(cls.fb * eps)
 
 
+class Zu2015(SHMR):
+    log10_M1 = 12.10 + np.log10(h)
+    log10_Ms0 = 10.31 + 2.0 * np.log10(h)
+    beta = 0.33
+    delta = 0.42
+    gamma = 1.21
+    label = "Zu & Mandelbaum (2015)"
+    data = "SDSS DR7"
+    method = "iHOD (clustering + GGL)"
+
+    @classmethod
+    def log10_M(cls, log10_M_star):
+        m = 10 ** (log10_M_star - cls.log10_Ms0)
+        log10_M = (
+            cls.log10_M1
+            + cls.beta * np.log10(m)
+            + (m ** cls.delta / (1 + m ** -cls.gamma) - 0.5) / np.log(10.)
+        )
+        return log10_M
+
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
+        # Forward table
+        _lm = np.linspace(3.0, 13.0, 800)
+        _log10_M = cls.log10_M(_lm)
+
+        # Invert (monotonic): log10 M* as a function of log10 M_h.
+        log10_M_star = np.interp(
+            np.asarray(log10_M, dtype=float),
+            _log10_M, _lm,
+        )
+        return log10_M_star - log10_M
+
+
