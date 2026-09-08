@@ -344,14 +344,12 @@ def corner(
     return fig, axes
 
 
-def colored_line(
-        x, y, main_color,
+def overlay_line(
+        x, y,
         x0=None,
         bg_color="white",
         n_colors=256,
-        label=None,
-        linewidth=0.8,
-        linestyle="-",
+        linewidth=2.,
 ):
     x = np.asarray(x)
     y = np.asarray(y)
@@ -359,18 +357,17 @@ def colored_line(
     if x0 is None:
         x0 = np.median(x)
 
-    width = 0.3
+    width = 0.05
     def smooth_step(x_val):
         return 1 / (1 + np.exp(-(x_val - x0) / width))
 
     transition_values = smooth_step(x)
     bg_rgb = to_rgba(bg_color)
-    main_rgb = to_rgba(main_color)
 
-    # Create colormap with n_colors
-    colors_list = [bg_rgb[:3], main_rgb[:3]]
+    # Colormap from fully opaque bg_color to fully transparent bg_color.
+    colors_list = [bg_rgb, (*bg_rgb[:3], 0.0)]
     cmap = LinearSegmentedColormap.from_list(
-        name="transition", colors=colors_list, N=n_colors)
+        name="fade", colors=colors_list, N=n_colors)
     points = np.array([x, y]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
@@ -379,17 +376,9 @@ def colored_line(
         cmap=cmap,
         norm=plt.Normalize(0, 1),
         linewidth=linewidth,
-        linestyle=linestyle,
     )
     lc.set_array(transition_values[:-1])
 
-    proxy = Line2D(
-        xdata=[0], ydata=[0],
-        color=main_color,
-        linewidth=linewidth,
-        label=label,
-    )
-
-    return lc, proxy
+    return lc
 
 
