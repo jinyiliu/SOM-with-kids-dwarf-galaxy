@@ -361,6 +361,11 @@ def overlay_line(
     def smooth_step(x_val):
         return 1 / (1 + np.exp(-(x_val - x0) / width))
 
+    # Resample onto a dense uniform x-grid so the curve is a smooth stroke
+    # rather than a visibly beaded chain of segments.
+    x_dense = np.linspace(x.min(), x.max(), n_colors * 4)
+    y_dense = np.interp(x_dense, x, y)
+    x, y = x_dense, y_dense
     transition_values = smooth_step(x)
     bg_rgb = to_rgba(bg_color)
 
