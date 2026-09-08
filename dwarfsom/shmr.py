@@ -236,3 +236,28 @@ class Yang2012(SHMR):
         return log10_M_star - np.asarray(log10_M, dtype=float)
 
 
+class Shao2026(SHMR):
+    log10_Mp = 12.03
+    eps = -1.59
+    alpha = 2.08
+    beta = 0.32
+    log10_gamma = -2.80
+    delta = 1.03
+    sigma_l = 0.68
+    sigma_p = 0.17
+    label = "Shao et al. (2026)"
+    data = "DESI DR1"
+    method = "HOD (wp + dSigma + Nsat) + SMF"
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
+        x = np.asarray(log10_M, dtype=float) - cls.log10_Mp
+        gamma = 10.0 ** cls.log10_gamma
+        log10_ratio = (
+            cls.eps
+            - np.log10(10.0 ** (-cls.alpha * x) + 10.0 ** (-cls.beta * x))
+            + gamma * np.exp(-0.5 * (x / cls.delta) ** 2)
+        )
+        return log10_ratio - x
+
+
