@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import seaborn as sns
 import matplotlib as mpl
@@ -12,15 +14,37 @@ from dwarfsom.mcmc import compute_quantiles, estimate_MAP
 
 cmplstyle.use_builtin_mplstyle()
 
+warnings.filterwarnings(
+    action="ignore",
+    message="The following kwargs were not used by contour",
+    category=UserWarning,
+)
+
 CONFIDENCE_LEVELS_2D = (0.393, 0.864)
+DEFAULT_FILL_ALPHA = 0.7
+
+
+def _format_ticks(ticks: tuple[float, ...]) -> list[str]:
+    """Format tick values with enough decimals to reflect their spacing."""
+    vals = np.sort(np.unique(np.asarray(ticks, dtype=float)))
+    if vals.size <= 1:
+        decimals = 1
+    else:
+        step = np.min(np.diff(vals))
+        if step <= 0:
+            decimals = 1
+        else:
+            decimals = max(0, int(np.ceil(-np.log10(step))))
+    return [f"${v:.{decimals}f}$" for v in ticks]
 
 def corner(
         samples: np.ndarray | list[np.ndarray],
         color: str | list[str]="蔚蓝",
+        sample_labels: list[str] | None=None,
         same_contour_color: bool=False,
-        fill: bool=False,
-        contour_kwargs: dict | None=None,
-        fill_kwargs: dict | None=None,
+        fill: bool | list[bool]=False,
+        contour_kwargs: dict | list[dict] | None=None,
+        fill_kwargs: dict | list[dict] | None=None,
         levels: tuple[float]=CONFIDENCE_LEVELS_2D,
         quantiles: tuple[float]=(0.16, 0.5, 0.84),
         kde_bw_adjust: float=1.0,
@@ -34,8 +58,9 @@ def corner(
         MAPs: list[float] | None=None,
         MAPs_kwargs: dict | None=None,
         plot_samples: bool=False,
-        plot_samples_kwargs: dict | None=None,
+        plot_samples_kwargs: dict | list[dict] | None=None,
         marginal_titles: list[str] | bool=False,
+        fill_quantile_band: bool=False,
         verbose: bool=False,
         savedir: str | None=None,
         fname: str="posterior_corner.pdf",
@@ -48,12 +73,25 @@ def corner(
         CONFIDENCE_LEVELS_2D.
 
     Args:
-        samples: Samples from the posterior distribution.
-        color: Base color of the contour lines and fill.
+        samples: Samples from the posterior distribution. Either a single 2D
+            array of shape (n_samples, n_params), or a list of such arrays to
+            overlay multiple sample sets in the same panels.
+        color: Base color of the contour lines and fill. Either a single color
+            (broadcast to all sample sets) or a list of colors, one per set.
+        sample_labels: Optional labels for each sample set (for the legend).
+            Length must match the number of sample sets.
         same_contour_color: Whether to use the same color for all confidence levels.
-        fill: Whether to fill the contour.
-        contour_kwargs: Additional keyword arguments for the sns.kdeplot for the contour.
-        fill_kwargs: Additional keyword arguments for the sns.kdeplot for the filled contour.
+        fill: Whether to fill the contour. Either a single bool (broadcast to
+            all sample sets) or a list of bools, one per sample set.
+        contour_kwargs: Additional keyword arguments for the sns.kdeplot for the
+            contour. Either a single dict (broadcast) or a list of dicts, one
+            per sample set. May override the defaults for 'levels', 'color',
+            'colors', 'bw_adjust', 'gridsize', 'fill', and 'zorder'.
+        fill_kwargs: Additional keyword arguments for the sns.kdeplot for the
+            filled contour. Either a single dict or a list of dicts, one per
+            sample set. May override the defaults for 'levels', 'color',
+            'colors', 'bw_adjust', 'gridsize', 'fill', 'alpha', 'extend', and
+            'zorder'.
         levels: Confidence levels for the contour.
         quantiles: Quantiles to display on the diagonal plots.
         kde_bw_adjust: Bandwidth adjustment for the kernel density estimation.
@@ -74,16 +112,13 @@ def corner(
         plot_samples_kwargs: Additional keyword arguments for the hexbin plot
             of the samples.
         marginal_titles: Whether to add a title to the marginal distribution.
+        fill_quantile_band: If True, fill the area between the marginal KDE
+            curve and the x-axis within the quantile range, using the same
+            color and alpha as the 2sigma fill.
         verbose:
         savedir:
         fname:
     """
-    if samples.ndim == 1:
-        raise NotImplementedError(
-            "1D samples are not supported."
-            "Please provide 2D samples with shape (n_samples, n_params)."
-        )
-
     if not all(0. < level < 1. for level in levels):
         raise ValueError("Confidence levels must be between 0 and 1")
 
@@ -116,17 +151,71 @@ def corner(
         else:
             MAPs_kwargs = default_MAPs_kwargs.update(MAPs_kwargs)
 
-    n_params = samples.shape[1]
-    n_colors = len(CONFIDENCE_LEVELS_2D)
-    colors = sns.light_palette(
-        color=color, n_colors=n_colors + 2)[-n_colors:]
+    # Normalize samples into a list of 2D arrays (one per overlaid set).
+    if isinstance(samples, (list, tuple)):
+        samples_list = [np.asarray(s) for s in samples]
+        if truths is not None or MAPs is not None:
+            raise ValueError(
+                "truths/MAPs are not supported when multiple sample sets "
+                "are provided."
+            )
+        if plot_samples:
+            raise ValueError(
+                "plot_samples (hexbins) is not supported when multiple "
+                "sample sets are provided."
+            )
+    else:
+        samples_list = [np.asarray(samples)]
 
-    fill_kwargs = fill_kwargs or {}
-    contour_kwargs = contour_kwargs or {}
-    plot_samples_kwargs = plot_samples_kwargs or {}
+    n_sets = len(samples_list)
+    for s in samples_list:
+        if s.ndim != 2:
+            raise NotImplementedError(
+                "1D samples are not supported."
+                "Please provide 2D samples with shape (n_samples, n_params)."
+            )
+    n_params = samples_list[0].shape[1]
+    for s in samples_list:
+        if s.shape[1] != n_params:
+            raise ValueError(
+                "All sample sets must have the same number of parameters."
+            )
+
+    # Broadcast per-set scalar/list parameters.
+    def _broadcast(value, name):
+        if isinstance(value, (list, tuple)):
+            if len(value) != n_sets:
+                raise ValueError(f"{name} must have length {n_sets}.")
+            return list(value)
+        return [value] * n_sets
+
+    colors = _broadcast(color, "color")
+    fills = _broadcast(fill, "fill")
+
+
+    def _broadcast_kwargs(kwargs, name):
+        if kwargs is None:
+            return [{} for _ in range(n_sets)]
+        if isinstance(kwargs, list):
+            if len(kwargs) != n_sets:
+                raise ValueError(f"{name} must have length {n_sets}.")
+            return [dict(k or {}) for k in kwargs]
+        return [dict(kwargs or {}) for _ in range(n_sets)]
+
+    contour_kwargs_per = _broadcast_kwargs(contour_kwargs, "contour_kwargs")
+    fill_kwargs_per = _broadcast_kwargs(fill_kwargs, "fill_kwargs")
+    plot_samples_kwargs_per = _broadcast_kwargs(
+        plot_samples_kwargs, "plot_samples_kwargs")
+
+    if sample_labels is not None and len(sample_labels) != n_sets:
+        raise ValueError(f"sample_labels must have length {n_sets}.")
+
+    n_colors = len(CONFIDENCE_LEVELS_2D)
 
     if param_ranges is None:
-        param_ranges = np.vstack([samples.min(axis=0), samples.max(axis=0)]).T
+        all_samples = np.concatenate(samples_list, axis=0)
+        param_ranges = np.vstack(
+            [all_samples.min(axis=0), all_samples.max(axis=0)]).T
 
     if param_ticks is None:
         param_ticks = [
@@ -163,18 +252,18 @@ def corner(
         for j in range(n_params):
             ax = axes_lower[i, j]
             if isinstance(ax, plt.Axes):
-                if plot_samples:
+                if plot_samples and n_sets == 1:
                     if param_ranges is not None:
                         extent = (*param_ranges[j], *param_ranges[i])
                     else:
                         extent = None
                     ax.hexbin(
-                        x=samples[:, j],
-                        y=samples[:, i],
+                        x=samples_list[0][:, j],
+                        y=samples_list[0][:, i],
                         extent=extent,
                         zorder=0,
                         linewidths=0.05,
-                        **plot_samples_kwargs,
+                        **plot_samples_kwargs_per[0],
                     )
                 levels = [1 - cfl for cfl in CONFIDENCE_LEVELS_2D[::-1]]
                 if verbose:
@@ -184,35 +273,50 @@ def corner(
                         "and",
                         param_labels[i] if param_labels else f"param_{i}",
                     )
-                sns.kdeplot( # posterior contour plot
-                    x=samples[:, j],
-                    y=samples[:, i],
-                    ax=ax,
-                    levels=levels,
-                    color=color,
-                    bw_adjust=kde_bw_adjust,
-                    gridsize=kde_gridsize,
-                    fill=False,
-                    colors=[color] * len(levels) if same_contour_color else colors,
-                    zorder=2,
-                    **contour_kwargs,
-                )
-                if fill:
-                    sns.kdeplot(
-                        x=samples[:, j],
-                        y=samples[:, i],
+                for s_idx, samp in enumerate(samples_list):
+                    color_i = colors[s_idx]
+                    palette = sns.light_palette(
+                        color=color_i, n_colors=n_colors + 2)[-n_colors:]
+                    ck = dict(contour_kwargs_per[s_idx])
+                    sns.kdeplot( # posterior contour plot
+                        x=samp[:, j],
+                        y=samp[:, i],
                         ax=ax,
-                        levels=levels,
-                        color=color,
-                        bw_adjust=kde_bw_adjust,
-                        gridsize=kde_gridsize,
-                        fill=True, # use matplotlib.axes.Axes.contourf
-                        colors=colors,
-                        alpha=0.7,
-                        extend="max",
-                        zorder=1,
-                        **fill_kwargs,
+                        levels=ck.pop("levels", levels),
+                        color=ck.pop("color", color_i),
+                        bw_adjust=ck.pop("bw_adjust", kde_bw_adjust),
+                        gridsize=ck.pop("gridsize", kde_gridsize),
+                        fill=ck.pop("fill", False),
+                        colors=ck.pop(
+                            "colors",
+                            [color_i] * len(levels) if same_contour_color
+                            else palette,
+                        ),
+                        zorder=ck.pop("zorder", 2 + s_idx),
+                        **ck,
                     )
+                    if fills[s_idx]:
+                        fk = dict(fill_kwargs_per[s_idx])
+                        alpha = fk.pop("alpha", DEFAULT_FILL_ALPHA)
+                        n_levels = len(levels)
+                        # 2sigma (outer) fill -> alpha; 1sigma (inner) -> alpha + 0.2
+                        alphas = [alpha] * n_levels
+                        alphas[-1] = min(alpha + 0.2, 1.0)
+                        sns.kdeplot(
+                            x=samp[:, j],
+                            y=samp[:, i],
+                            ax=ax,
+                            levels=fk.pop("levels", levels),
+                            color=fk.pop("color", color_i),
+                            bw_adjust=fk.pop("bw_adjust", kde_bw_adjust),
+                            gridsize=fk.pop("gridsize", kde_gridsize),
+                            fill=fk.pop("fill", True), # use matplotlib.axes.Axes.contourf
+                            colors=fk.pop("colors", palette),
+                            alpha=alphas,
+                            extend=fk.pop("extend", "max"),
+                            zorder=fk.pop("zorder", 1 + s_idx),
+                            **fk,
+                        )
                 ax.set_xlim(param_ranges[j])
                 ax.set_ylim(param_ranges[i])
                 ax.set_xticks(param_ticks[j])
@@ -220,73 +324,117 @@ def corner(
                 ax.set_yticks(param_ticks[i])
                 ax.set_yticklabels([])
 
-                if truths is not None:
-                    ax.scatter(
-                        truths[j], truths[i],
-                        **(
-                            truths_kwargs if (i, j) == (n_params - 1, 0) else
-                            {k: v for k, v in truths_kwargs.items() if (k != "label")}
-                        ),
-                    )
+                if n_sets == 1:
+                    if truths is not None:
+                        ax.scatter(
+                            truths[j], truths[i],
+                            **(
+                                truths_kwargs if (i, j) == (n_params - 1, 0) else
+                                {k: v for k, v in truths_kwargs.items() if (k != "label")}
+                            ),
+                        )
 
-                if MAPs is not None:
-                    ax.scatter(
-                        MAPs[j], MAPs[i],
-                        **(
-                            MAPs_kwargs if (i, j) == (n_params - 1, 0) else
-                            {k: v for k, v in MAPs_kwargs.items() if (k != "label")}
-                        ),
-                    )
+                    if MAPs is not None:
+                        ax.scatter(
+                            MAPs[j], MAPs[i],
+                            **(
+                                MAPs_kwargs if (i, j) == (n_params - 1, 0) else
+                                {k: v for k, v in MAPs_kwargs.items() if (k != "label")}
+                            ),
+                        )
 
-    fig.legend(
-        loc="upper right",
-        bbox_to_anchor=(0.8, 0.8),
-        prop={"family": "sans serif"},
-        frameon=False,
-    )
+    if n_sets > 1:
+        handles = [
+            Line2D(
+                xdata=[0], ydata=[0],
+                color=colors[s_idx],
+                label=(
+                    sample_labels[s_idx] if sample_labels is not None
+                    else f"set {s_idx}"
+                ),
+            )
+            for s_idx in range(n_sets)
+        ]
+        fig.legend(
+            handles=handles,
+            loc="upper right",
+            bbox_to_anchor=(1.0, 1.0),
+            bbox_transform=axes[0, -1].transAxes,
+            prop={"family": "sans serif"},
+            frameon=False,
+        )
+    else:
+        handles = [
+            h for ax in axes.flat
+            for h in ax.get_legend_handles_labels()[0]
+        ]
+        if handles:
+            fig.legend(
+                handles=handles,
+                loc="upper right",
+                bbox_to_anchor=(1.0, 1.0),
+                bbox_transform=axes[0, -1].transAxes,
+                prop={"family": "sans serif"},
+                frameon=False,
+            )
 
-    qvalues = compute_quantiles(samples, quantiles=quantiles)
+    qvalues_list = [
+        compute_quantiles(samp, quantiles=quantiles) for samp in samples_list
+    ]
 
     for i, ax in enumerate(axes_diag):  # diagonal
-        samples_i = samples[:, i]
         if isinstance(ax, plt.Axes):
-            sns.kdeplot(
-                samples_i,
-                ax=ax,
-                bw_adjust=kde_bw_adjust,
-                gridsize=kde_gridsize,
-                color=color,
-                linewidth=1.6,
-                zorder=0,
-            )
+            for s_idx, samp in enumerate(samples_list):
+                sns.kdeplot(
+                    samp[:, i],
+                    ax=ax,
+                    bw_adjust=kde_bw_adjust,
+                    gridsize=kde_gridsize,
+                    color=colors[s_idx],
+                    linewidth=1.6,
+                    zorder=0,
+                )
+                if fill_quantile_band:
+                    qlow, _, qhigh = qvalues_list[s_idx][i]
+                    line = ax.get_lines()[-1]
+                    xs = line.get_xdata()
+                    ys = line.get_ydata()
+                    palette = sns.light_palette(
+                        color=colors[s_idx], n_colors=n_colors + 2)[-n_colors:]
+                    band_alpha = fill_kwargs_per[s_idx].get(
+                        "alpha", DEFAULT_FILL_ALPHA)
+                    mask = (xs >= qlow) & (xs <= qhigh)
+                    xs_m = np.where(mask, xs, np.nan)
+                    ys_m = np.where(mask, ys, np.nan)
+                    ax.fill_between(
+                        xs_m, ys_m, 0,
+                        color=palette[0],
+                        alpha=band_alpha,
+                        linewidth=0,
+                        edgecolor="none",
+                        zorder=-1,
+                    )
             ax.margins(y=0.1)
             ax.set_ylim(bottom=0.0)
-            qlow, qmid, qhigh = qvalues[i]
-            if verbose:
-                print(
-                    param_labels[i] if param_labels else f"param_{i}",
-                    f"= {qmid:.3f} {{+{qmid - qlow:.3f}}} {{-{qhigh - qmid:.3f}}}",
-                )
-            # TODO: make this an optional feature
-            ax.fill_betweenx(
-                y=[0, ax.get_ylim()[1]],
-                x1=qlow,
-                x2=qhigh,
-                color="lightgrey",
-                zorder=-1,
-            )
 
-            if marginal_titles:
-                if isinstance(marginal_titles, list):
-                    ax.set_title(
-                        label=marginal_titles[i],
-                        fontsize=7,
+            if n_sets == 1:
+                qlow, qmid, qhigh = qvalues_list[0][i]
+                if verbose:
+                    print(
+                        param_labels[i] if param_labels else f"param_{i}",
+                        f"= {qmid:.3f} {{+{qmid - qlow:.3f}}} {{-{qhigh - qmid:.3f}}}",
                     )
-                else:
-                    ax.set_title(
-                        label=param_labels[i] + f" $={qmid:.2f}^{{+{qmid - qlow:.2f}}}_{{-{qhigh - qmid:.2f}}}$",
-                        fontsize=7,
-                    )
+                if marginal_titles:
+                    if isinstance(marginal_titles, list):
+                        ax.set_title(
+                            label=marginal_titles[i],
+                            fontsize=7,
+                        )
+                    else:
+                        ax.set_title(
+                            label=param_labels[i] + f" $={qmid:.2f}^{{+{qmid - qlow:.2f}}}_{{-{qhigh - qmid:.2f}}}$",
+                            fontsize=7,
+                        )
 
             ax.set_xlim(param_ranges[i])
             ax.set_xticks(param_ticks[i])
@@ -294,7 +442,7 @@ def corner(
             ax.set_yticks([])
             ax.set_yticklabels([])
 
-            if truths is not None:
+            if n_sets == 1 and truths is not None:
                 ax.axvline(
                     truths[i],
                     color=truths_kwargs["color"],
@@ -302,7 +450,7 @@ def corner(
                     zorder=truths_kwargs["zorder"],
                 )
 
-            if MAPs is not None:
+            if n_sets == 1 and MAPs is not None:
                 ax.axvline(
                     MAPs[i],
                     color=MAPs_kwargs["color"],
@@ -320,7 +468,7 @@ def corner(
             ax.set_xlabel(param_labels[i])
         if param_ticks is not None:
             ax.set_xticklabels(
-                [f"${tick:.1f}$" for tick in param_ticks[i]],
+                _format_ticks(param_ticks[i]),
                 fontsize=8,
             )
 
@@ -331,7 +479,7 @@ def corner(
                 ax.set_ylabel(param_labels[i])
             if param_ticks is not None:
                 ax.set_yticklabels(
-                    [f"${tick:.1f}$" for tick in param_ticks[i]],
+                    _format_ticks(param_ticks[i]),
                     fontsize=8,
                 )
 
