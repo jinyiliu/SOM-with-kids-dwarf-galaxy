@@ -18,7 +18,7 @@ from scipy.signal import savgol_filter
 
 h = astropy_Planck18.H0.value / 100
 
-_cache_dir = "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
+_cache_dir = "/net/alblas/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 
 if os.path.exists(
     os.path.join(_cache_dir, "_cache_host_terms.pk")
