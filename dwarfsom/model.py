@@ -869,12 +869,31 @@ def _host_halo_mass_pdf(
         log10_M_host: np.ndarray,
         dlog10_M_host: np.ndarray | None=None,
         density: bool=False,
+        b1: float | None=None,
+        alpha_s: float | None=None,
 ):
-    """Conditonal probability of host halo mass given satellite stellar mass."""
+    """Conditonal probability of host halo mass given satellite stellar mass.
+
+    Args:
+        z_lens: Lens redshift.
+        log10_M_star: log10 of satellite stellar mass in M_sun.
+        log10_M_host: log10 of host halo mass grid in M_sun.
+        dlog10_M_host: Bin width of the host halo mass grid.
+        density: If True, return the normalized probability density.
+        b1: Satellite CSMF normalisation slope (Dvornik+23). If None, the
+            default in _satellite_CSMF is used.
+        alpha_s: Satellite CSMF faint-end slope. If None, the default in
+            _satellite_CSMF is used.
+    """
     from pyccl.halos import MassFuncTinker10
 
     a = 1. / (1. + z_lens)
-    PHI_s = _satellite_CSMF(log10_M_star, log10_M_host)
+    CSMF_kwargs = {}
+    if b1 is not None:
+        CSMF_kwargs["b1"] = b1
+    if alpha_s is not None:
+        CSMF_kwargs["alpha_s"] = alpha_s
+    PHI_s = _satellite_CSMF(log10_M_star, log10_M_host, **CSMF_kwargs)
     hmf = MassFuncTinker10(mass_def=MassDef200m)
     dndln_M_host = hmf(Planck18, h * 10 ** log10_M_host, a)
 
