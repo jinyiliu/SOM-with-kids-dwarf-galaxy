@@ -169,38 +169,37 @@ mcmc2 = MCMC(
 
 if __name__ == "__main__":
     # region Run MCMC
-    # n_walkers = 32
-    # n_burn_in_steps = 3000
-    # n_steps = 20000
-    # processes = 32
-    #
-    # sampler1 = run_emcee(
-    #     mcmc1,
-    #     n_walkers=n_walkers,
-    #     n_burn_in_steps=n_burn_in_steps,
-    #     n_steps=n_steps,
-    #     processes=processes,
-    # )
-    #
-    # sampler2 = run_emcee(
-    #     mcmc2,
-    #     n_walkers=n_walkers,
-    #     n_burn_in_steps=n_burn_in_steps,
-    #     n_steps=n_steps,
-    #     processes=processes,
-    # )
-    #
-    #
-    # mcmc1.register_sampler(sampler1)
-    # mcmc2.register_sampler(sampler2)
-    #
-    # mcmc1.save_chain(fname=os.path.join(
-    #     _alblas, _GGL_data, "mcmc_chain_Lensbin1.npy"
-    # ))
-    # mcmc2.save_chain(fname=os.path.join(
-    #     _alblas, _GGL_data, "mcmc_chain_Lensbin2.npy"
-    # ))
+    n_walkers = 32
+    n_burn_in_steps = 3000
+    n_steps = 20000
+    processes = 32
 
+    sampler1 = run_emcee(
+        mcmc1,
+        n_walkers=n_walkers,
+        n_burn_in_steps=n_burn_in_steps,
+        n_steps=n_steps,
+        processes=processes,
+    )
+
+    sampler2 = run_emcee(
+        mcmc2,
+        n_walkers=n_walkers,
+        n_burn_in_steps=n_burn_in_steps,
+        n_steps=n_steps,
+        processes=processes,
+    )
+
+
+    mcmc1.register_sampler(sampler1)
+    mcmc2.register_sampler(sampler2)
+
+    mcmc1.save_chain(fname=os.path.join(
+        _alblas, _GGL_data, "mcmc_chain_Lensbin1.npy"
+    ))
+    mcmc2.save_chain(fname=os.path.join(
+        _alblas, _GGL_data, "mcmc_chain_Lensbin2.npy"
+    ))
     # endregion
 
     samples1 = np.load(os.path.join(
@@ -216,89 +215,89 @@ if __name__ == "__main__":
     ]
 
     # region Plot posterior
-    # MAPs1 = estimate_MAP(
-    #     samples1,
-    #     method="kde",
-    #     kde_kwargs={
-    #         "bw_adjust": 1.3,
-    #         "gridsize": 70,
-    #     },
-    # )
-    #
-    # MAPs2 = estimate_MAP(
-    #     samples2,
-    #     method="kde",
-    #     kde_kwargs={
-    #         "bw_adjust": 1.3,
-    #         "gridsize": 70,
-    #     },
-    # )
-    #
-    # for bin_name, samples, MAPs, mcmc in [
-    #     ("Lens 1", samples1, MAPs1, mcmc1),
-    #     ("Lens 2", samples2, MAPs2, mcmc2),
-    # ]:
-    #     print(f"\n{bin_name}")
-    #     means = samples.mean(axis=0)
-    #     qvalues = compute_quantiles(samples)
-    #     for param_name, mean, map_val, (qlow, qmid, qhigh) in zip(
-    #         param_priors.keys(), means, MAPs, qvalues,
-    #     ):
-    #         print(
-    #             f"  {param_name}: \n"
-    #             f"      MAP = {map_val:.4f}, \n"
-    #             f"      mean = {mean:.4f}, \n"
-    #             f"      median = {qmid:.4f} "
-    #             f"+{qhigh - qmid:.4f} -{qmid - qlow:.4f}"
-    #         )
-    #     chi2 = mcmc.chi2(MAPs)
-    #     dof = len(mcmc.dv) - len(param_priors)
-    #     chi2_nu = chi2 / dof
-    #     print(
-    #         f"  chi2_nu = {chi2_nu:.3f}  "
-    #         f"(chi2 = {chi2:.2f}, dof = {dof}, evaluated at MAP)"
-    #     )
-    #
-    #
-    # plot_samples_kwargs = dict(
-    #     gridsize=30,
-    #     cmap="Greys",
-    # )
-    # param_ranges = [
-    #     (10.7, 11.8),
-    #     (0.0, 2.0),
-    #     (0.0, 0.17),
-    # ]
-    # param_ticks = [
-    #     (10.9, 11.2, 11.5),
-    #     (0.5, 1.0, 1.5),
-    #     (0.05, 0.10, 0.15),
-    # ]
-    #
-    # fig, ax = corner(
-    #     samples=[samples1, samples2],
-    #     color=colors,
-    #     sample_labels=labels,
-    #     kde_bw_adjust=2.,
-    #     contour_kwargs={
-    #         "linewidth": 0.1,
-    #     },
-    #     fill=True,
-    #     fill_quantile_band=False,
-    #     fill_kwargs={
-    #         "alpha": 0.7,
-    #     },
-    #     param_labels=param_labels,
-    #     param_ranges=param_ranges,
-    #     param_ticks=param_ticks,
-    #     figsize=onecol_wth,
-    #     MAPs=None,
-    #     savedir="./",
-    #     plot_samples=False,
-    #     plot_samples_kwargs=plot_samples_kwargs,
-    #     marginal_titles=True,
-    #     fname="posterior_corner.pdf",
-    # )
+    MAPs1 = estimate_MAP(
+        samples1,
+        method="kde",
+        kde_kwargs={
+            "bw_adjust": 1.3,
+            "gridsize": 70,
+        },
+    )
+
+    MAPs2 = estimate_MAP(
+        samples2,
+        method="kde",
+        kde_kwargs={
+            "bw_adjust": 1.3,
+            "gridsize": 70,
+        },
+    )
+
+    for bin_name, samples, MAPs, mcmc in [
+        ("Lens 1", samples1, MAPs1, mcmc1),
+        ("Lens 2", samples2, MAPs2, mcmc2),
+    ]:
+        print(f"\n{bin_name}")
+        means = samples.mean(axis=0)
+        qvalues = compute_quantiles(samples)
+        for param_name, mean, map_val, (qlow, qmid, qhigh) in zip(
+            param_priors.keys(), means, MAPs, qvalues,
+        ):
+            print(
+                f"  {param_name}: \n"
+                f"      MAP = {map_val:.4f}, \n"
+                f"      mean = {mean:.4f}, \n"
+                f"      median = {qmid:.4f} "
+                f"+{qhigh - qmid:.4f} -{qmid - qlow:.4f}"
+            )
+        chi2 = mcmc.chi2(MAPs)
+        dof = len(mcmc.dv) - len(param_priors)
+        chi2_nu = chi2 / dof
+        print(
+            f"  chi2_nu = {chi2_nu:.3f}  "
+            f"(chi2 = {chi2:.2f}, dof = {dof}, evaluated at MAP)"
+        )
+
+
+    plot_samples_kwargs = dict(
+        gridsize=30,
+        cmap="Greys",
+    )
+    param_ranges = [
+        (10.7, 11.8),
+        (0.0, 2.0),
+        (0.0, 0.17),
+    ]
+    param_ticks = [
+        (10.9, 11.2, 11.5),
+        (0.5, 1.0, 1.5),
+        (0.05, 0.10, 0.15),
+    ]
+
+    fig, ax = corner(
+        samples=[samples1, samples2],
+        color=colors,
+        sample_labels=labels,
+        kde_bw_adjust=2.,
+        contour_kwargs={
+            "linewidth": 0.1,
+        },
+        fill=True,
+        fill_quantile_band=False,
+        fill_kwargs={
+            "alpha": 0.7,
+        },
+        param_labels=param_labels,
+        param_ranges=param_ranges,
+        param_ticks=param_ticks,
+        figsize=onecol_wth,
+        MAPs=None,
+        savedir="./",
+        plot_samples=False,
+        plot_samples_kwargs=plot_samples_kwargs,
+        marginal_titles=True,
+        fname="posterior_corner.pdf",
+    )
     # endregion
 
 
