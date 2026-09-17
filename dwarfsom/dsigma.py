@@ -144,22 +144,26 @@ class DSigma:
         self.patch_centers = patch_centers
         self.npatch = npatch
 
+        self._catalog_patch_kwargs = {}
+        if patch_centers is not None:
+            self._catalog_patch_kwargs["patch_centers"] = patch_centers
+        if npatch is not None:
+            self._catalog_patch_kwargs["npatch"] = npatch
+
         self._effective_sigma_crit = self.effective_critical_surface_density()
 
         self._lens_Catalog = Catalog(
             ra=lens.ra, ra_units="degrees",
             dec=lens.dec, dec_units="degrees",
             w=self.lens.w,
-            patch_centers=patch_centers,
-            npatch=npatch,
+            **self._catalog_patch_kwargs,
         )
         self._source_Catalog = Catalog(
             ra=self.source.ra, ra_units="degrees",
             dec=self.source.dec, dec_units="degrees",
             g1=self.source.e1, g2=self.source.e2,
             w=self.source.w,
-            patch_centers=patch_centers,
-            npatch=npatch,
+            **self._catalog_patch_kwargs,
         )
         self.config = {
             "min_sep": self.Mpc_h_inv2degree(self.min_rp),
@@ -212,8 +216,7 @@ class DSigma:
                 ra=self.randoms[i].ra, ra_units="degrees",
                 dec=self.randoms[i].dec, dec_units="degrees",
                 w=self.randoms[i].w,
-                patch_centers=self.patch_centers,
-                npatch=self.npatch,
+                **self._catalog_patch_kwargs,
             )
             ng_rand.process(random_Catalog, self._source_Catalog)
             random_weight_sum = (
