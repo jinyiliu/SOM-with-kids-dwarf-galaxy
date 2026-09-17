@@ -85,7 +85,8 @@ def DSigmaModel(
         if key not in _cache_host_terms:
             _cache_host_terms[key] = (
                 precompute_host_dsigma_terms(
-                    z_lens, None, f_c, n_rs=70, use_single_halo=False
+                    z_lens, None, f_c, log10_M_star=log10_M_star,
+                    n_rs=70, use_single_halo=False
                 )
             )
         log10_M_host_mean = _cache_host_terms[key]["log10_M_host_mean"]
@@ -697,7 +698,8 @@ def compute_host_dsigma(
         if key not in _cache_host_terms:
             _cache_host_terms[key] = (
                 precompute_host_dsigma_terms(
-                    z_lens, c, f_c, n_rs=n_rs, use_single_halo=False
+                    z_lens, c, f_c, log10_M_star=log10_M_star,
+                    n_rs=n_rs, use_single_halo=False
                 )
             )
 
