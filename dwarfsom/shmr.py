@@ -1,6 +1,9 @@
+import os
+import yaml
 import numpy as np
 from astropy.cosmology import Planck18 as astropy_Planck18
 from typing import Callable
+from scipy.interpolate import interp1d
 
 
 h = astropy_Planck18.H0.value / 100
@@ -13,6 +16,36 @@ class SHMR:
         Masses are in units of solar masses. No h scaling is used.
     """
     pass
+
+class Chaikin2026(SHMR):
+    label = "Chaikin+26"
+    data = "COLIBRE"
+    method = "hydro-sim"
+    min_log10_M = 10.5
+    _colibre_smhm = None
+
+    @classmethod
+    def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
+        with open(
+            os.path.join(
+                os.path.dirname(__file__), "data", "COLIBRE_SMHM.yaml"
+            ),
+            "r",
+        ) as f:
+            cls._colibre_smhm = yaml.load(f, Loader=yaml.SafeLoader)
+
+        x = np.asarray(cls._colibre_smhm["m6"]["z0.1"]["x"], dtype=float)
+        y = np.asarray(cls._colibre_smhm["m6"]["z0.1"]["y"], dtype=float)
+
+        log10_ratio = interp1d(
+            np.log10(x),
+            np.log10(y),
+            kind="cubic",
+            bounds_error=False,
+            fill_value="extrapolate",
+        )
+        return log10_ratio(np.asarray(log10_M, dtype=float))
+
 
 
 class Girelli2020(SHMR):
