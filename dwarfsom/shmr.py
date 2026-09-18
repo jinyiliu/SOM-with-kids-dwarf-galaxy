@@ -77,7 +77,7 @@ class VanUitert2016(SHMR):
     beta1 = 7.5
     beta2 = 0.25
     label = "van Uitert+16"
-    data = "KiDS + GAMA"
+    data = "KiDS-1000"
     min_log10_M = 11.0
 
     @classmethod
@@ -154,7 +154,7 @@ class Moster2010(SHMR):
     beta = 1.057
     gamma = 0.556
     label = "Moster+10"
-    data = "SDSS + Millennium"
+    data = "SDSS DR2/DR3 + GADGET-2"
     method = "AM"  # Abundance matching
     min_log10_M = 10.5
 
@@ -191,7 +191,7 @@ class Zu2015(SHMR):
     delta = 0.42
     gamma = 1.21
     label = "Zu+15"
-    data = "SDSS"
+    data = "SDSS DR7"
     method = "GGL + clustering"
     min_log10_M = 11.1
 
@@ -264,8 +264,8 @@ class Yang2012(SHMR):
     alpha = 0.29
     beta = 8.15
     label = "Yang+12"
-    data = "SDSS"
-    method = "SMF + clustering"  # FIXME
+    data = "SDSS DR7"
+    method = "SMF + CSMF + clustering"
     min_log10_M = 11.1
 
     @classmethod
@@ -290,7 +290,7 @@ class Shao2026(SHMR):
     sigma_l = 0.68
     sigma_p = 0.17
     label = "Shao+26"
-    data = "DESI"
+    data = "DESI DR1"
     method = "SMF + GGL + clustering"
     min_log10_M = 10.5
 
