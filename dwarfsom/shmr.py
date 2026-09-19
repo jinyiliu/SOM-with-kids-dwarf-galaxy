@@ -303,6 +303,6 @@ class Shao2026(SHMR):
             - np.log10(10.0 ** (-cls.alpha * x) + 10.0 ** (-cls.beta * x))
             + gamma * np.exp(-0.5 * (x / cls.delta) ** 2)
         )
-        return log10_ratio - x
+        return log10_ratio - x - 2.0 * np.log10(h)
 
 
