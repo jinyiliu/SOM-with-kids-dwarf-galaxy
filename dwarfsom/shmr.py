@@ -259,13 +259,13 @@ class Behroozi2019(SHMR):
 
 
 class Yang2012(SHMR):
-    log10_M0 = 10.19 - 2.0 * np.log10(h)
-    log10_M1 = 10.69 - 1.0 * np.log10(h)
-    alpha = 0.29
-    beta = 8.15
+    log10_M0 = 10.36 - 2.0 * np.log10(h)
+    log10_M1 = 11.06 - 1.0 * np.log10(h)
+    alpha = 0.27
+    beta = 4.34
     label = "Yang+12"
     data = "SDSS DR7"
-    method = "SMF + CSMF + clustering"
+    method = "SMF + CSMF"
     min_log10_M = 11.1
 
     @classmethod
