@@ -92,14 +92,14 @@ class VanUitert2016(SHMR):
 
 
 class Dvornik2023(SHMR):
-    log10_M0 = 10.521 - 2 * np.log10(h)
-    log10_M1 = 11.145 - 1 * np.log10(h)
-    gamma1 = 7.385
+    log10_M0 = 10.519 - 2 * np.log10(h)
+    log10_M1 = 11.138 - 1 * np.log10(h)
+    gamma1 = 7.096
     gamma2 = 0.201
     label = "Dvornik+23"
     data = "KiDS + GAMA"
     method = "SMF + GGL + clustering"
-    min_log10_M = 11.0
+    min_log10_M = 11.3
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -138,7 +138,7 @@ class Hudson2015(SHMR):
     label = "Hudson+15"
     data = "CFHTLenS"
     method = "GGL"
-    min_log10_M = 11.3
+    min_log10_M = 11.5
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
@@ -175,7 +175,7 @@ class Moster2018(SHMR):
     label = "Moster+18"
     data = "EMERGE"
     method = "EM" # Emperical model
-    min_log10_M = 10.3
+    min_log10_M = 10.5
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -185,39 +185,35 @@ class Moster2018(SHMR):
 
 
 class Zu2015(SHMR):
-    log10_M1 = 12.10 + np.log10(h)
-    log10_Ms0 = 10.31 + 2.0 * np.log10(h)
-    beta = 0.33
-    delta = 0.42
-    gamma = 1.21
     label = "Zu+15"
     data = "SDSS DR7"
     method = "GGL + clustering"
-    min_log10_M = 11.1
+    min_log10_M = 11.0
 
     @classmethod
-    def log10_M(cls, log10_M_star):
-        m = 10 ** (log10_M_star - cls.log10_Ms0)
-        log10_M = (
-            cls.log10_M1
-            + cls.beta * np.log10(m)
-            + (m ** cls.delta / (1 + m ** -cls.gamma) - 0.5) / np.log(10.)
+    def _lgMh_of_lgMs(cls, lgM_star):
+        # Eq. (51): <lg M_h | M_*> vs lg M_* (M_h in h^-1 Msun, M_* in h^-2 Msun)
+        return (
+            4.41 / (1.0 + np.exp(-1.82 * (lgM_star - 11.18)))
+            + 11.12 * np.sin(-0.12 * (lgM_star - 23.37))
         )
-        return log10_M
-
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
-        # Forward table
-        _lm = np.linspace(3.0, 13.0, 800)
-        _log10_M = cls.log10_M(_lm)
+        log10_M = np.asarray(log10_M, dtype=float)
+        lg_h = np.log10(h)
 
-        # Invert (monotonic): log10 M* as a function of log10 M_h.
-        log10_M_star = np.interp(
-            np.asarray(log10_M, dtype=float),
-            _log10_M, _lm,
+        _lm_star = np.linspace(4.0, 12.5, 800)
+        _lm_h = cls._lgMh_of_lgMs(_lm_star) - lg_h
+
+        interp = interp1d(
+            _lm_h, _lm_star,
+            kind="cubic",
+            bounds_error=False,
+            fill_value="extrapolate",
         )
-        return log10_M_star - log10_M
+        lgM_star = interp(log10_M) - 2.0 * lg_h
+        return lgM_star - log10_M
 
 
 class Behroozi2019(SHMR):
@@ -266,7 +262,7 @@ class Yang2012(SHMR):
     label = "Yang+12"
     data = "SDSS DR7"
     method = "SMF + CSMF"
-    min_log10_M = 11.1
+    min_log10_M = 11.0
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
@@ -287,12 +283,10 @@ class Shao2026(SHMR):
     beta = 0.32
     log10_gamma = -2.80
     delta = 1.03
-    sigma_l = 0.68
-    sigma_p = 0.17
     label = "Shao+26"
     data = "DESI DR1"
     method = "SMF + GGL + clustering"
-    min_log10_M = 10.5
+    min_log10_M = 11.0
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
