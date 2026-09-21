@@ -138,7 +138,7 @@ class Hudson2015(SHMR):
     label = "Hudson+15"
     data = "CFHTLenS"
     method = "GGL"
-    min_log10_M = 11.5
+    min_log10_M = 11.3
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray, z: float=0.1) -> np.ndarray:
@@ -212,8 +212,20 @@ class Zu2015(SHMR):
             bounds_error=False,
             fill_value="extrapolate",
         )
-        lgM_star = interp(log10_M) - 2.0 * lg_h
-        return lgM_star - log10_M
+        lgM_star = interp(log10_M)
+
+        # Below lg M_h = 11, extend with the slope at lg M_h = 11.
+        x0 = 11.0
+        y0 = interp(x0)
+        eps = 1e-3
+        slope = (interp(x0 + eps) - interp(x0 - eps)) / (2.0 * eps)
+        lgM_star = np.where(
+            log10_M < x0,
+            y0 + slope * (log10_M - x0),
+            lgM_star,
+        )
+
+        return lgM_star - 2.0 * lg_h - log10_M
 
 
 class Behroozi2019(SHMR):
@@ -290,13 +302,16 @@ class Shao2026(SHMR):
 
     @classmethod
     def shmr(cls, log10_M: np.ndarray) -> np.ndarray:
+        # FIXME: It should be log10_M + np.log10(h) according to the equation.
+        # x = np.asarray(log10_M + np.log10(h), dtype=float) - cls.log10_Mp
+        # FIXME: However, it does not reproduce the curve in the paper.
         x = np.asarray(log10_M, dtype=float) - cls.log10_Mp
         gamma = 10.0 ** cls.log10_gamma
-        log10_ratio = (
+        log10_M_star = (
             cls.eps
             - np.log10(10.0 ** (-cls.alpha * x) + 10.0 ** (-cls.beta * x))
             + gamma * np.exp(-0.5 * (x / cls.delta) ** 2)
-        )
-        return log10_ratio - x - 2.0 * np.log10(h)
+        ) + cls.log10_Mp - 2.0 * np.log10(h)
+        return log10_M_star - log10_M
 
 
