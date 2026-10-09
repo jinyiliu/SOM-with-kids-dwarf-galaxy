@@ -49,7 +49,7 @@ class Source:
     e2: np.ndarray
     w: np.ndarray
     dndz: tuple[np.ndarray, np.ndarray]
-    m: float = 0. # multiplicative bias
+    m: float = 0. # mean multiplicative bias
 
 @dataclass
 class Random:
