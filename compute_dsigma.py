@@ -36,12 +36,12 @@ if __name__ == "__main__":
     # endregion
 
     # region Construct source with KiDS-1000 gold WL catalogue
-    # m_bias = {
+    # m_bias = {  # Kannawadi et al. (2019)
     #     1: -0.013,
     #     2: -0.010,
     #     3: -0.011,
-    #     4: 0.007,
-    #     5: 0.006,
+    #     4:  0.007,
+    #     5:  0.006,
     # }
     #
     # gold_WL = pd.read_csv(os.path.join(
@@ -105,12 +105,12 @@ if __name__ == "__main__":
     # endregion
 
     # region Construct source with KiDS-1000 METACALIB WL catalogue
-    m_bias = {
-        1: -0.013,
-        2: -0.010,
-        3: -0.011,
-        4: 0.007,
-        5: 0.006,
+    m_bias = {  # Mijin et al. (2025)
+        1: -0.0082,
+        2: -0.0219,
+        3: -0.0037,
+        4:  0.0034,
+        5: -0.0024,
     }
 
     import pyarrow.feather as feather
@@ -160,11 +160,12 @@ if __name__ == "__main__":
         for exclude_tomo_bin in range(1, n_excluded_tomo_bins + 1):
             mask *= metacal_WL["TOMO_BIN"] != exclude_tomo_bin
 
+    R = (metacal_WL[mask]["R11"] + metacal_WL[mask]["R22"]) / 2
     source = Source(
         ra=metacal_WL[mask]["RAJ2000"],
         dec=metacal_WL[mask]["DECJ2000"],
-        e1=metacal_WL[mask]["e1"],
-        e2=metacal_WL[mask]["e2"],
+        e1=metacal_WL[mask]["e1"] / R.mean(),
+        e2=metacal_WL[mask]["e2"] / R.mean(),
         w=metacal_WL[mask]["weight"],
         dndz=dndz,
         m=float(m),
@@ -182,11 +183,21 @@ if __name__ == "__main__":
         randoms.append(random)
     # endregion
 
+    # region Patch center file
     patch_centers_savepath = (
         "/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/"
         "patch_centers_npatch{}.dat"
     )
     npatch = 100
+
+    # cat = Catalog(
+    #     ra=lens1.ra, ra_units="degrees",
+    #     dec=lens1.dec, dec_units="degrees",
+    #     npatch=npatch,
+    # )
+    # cat.write_patch_centers(patch_centers_savepath.format(npatch))
+    # del cat
+    # endregion
 
     fname = "dsigma_Lensbin{}_Sourcebin2345.csv"
 
