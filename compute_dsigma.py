@@ -105,12 +105,19 @@ if __name__ == "__main__":
     # endregion
 
     # region Construct source with KiDS-1000 METACALIB WL catalogue
-    m_bias = {  # Mijin et al. (2025)
-        1: -0.0082,
-        2: -0.0219,
-        3: -0.0037,
-        4:  0.0034,
-        5: -0.0024,
+    m_bias = {  # Mijin et al. (2025) Table 2 m_final
+        1: -0.0056,
+        2: -0.0169,
+        3: -0.0054,
+        4: -0.0069,
+        5: -0.0036,
+    }
+    response = {  # Mijin et al. (2025) Table 2 R
+        1: 0.21,
+        2: 0.19,
+        3: 0.20,
+        4: 0.19,
+        5: 0.20,
     }
 
     import pyarrow.feather as feather
@@ -121,15 +128,14 @@ if __name__ == "__main__":
     n_excluded_tomo_bins = 1
 
     tomo_weights = {}
+    metacal_WL["m"] = 0.
+    metacal_WL["R"] = 1.
     for tomo in range(1, 6):
         tomo_weights[tomo] = float(
             metacal_WL[metacal_WL["TOMO_BIN"] == tomo]["weight"].sum()
         )
-
-    m = np.average(  # compute average m-bias
-        list(m_bias.values())[n_excluded_tomo_bins:],
-        weights=list(tomo_weights.values())[n_excluded_tomo_bins:],
-    )
+        metacal_WL.loc[metacal_WL["TOMO_BIN"] == tomo, "m"] = m_bias[tomo]
+        metacal_WL.loc[metacal_WL["TOMO_BIN"] == tomo, "R"] = response[tomo]
 
     dndz = []
     for tomo in range(1, 6):
@@ -144,7 +150,6 @@ if __name__ == "__main__":
         dndz.append(tomo_dndz[1])
 
     dndz = np.array(dndz)
-
     dndz = (
         tomo_dndz[0],
         np.average(
@@ -160,15 +165,13 @@ if __name__ == "__main__":
         for exclude_tomo_bin in range(1, n_excluded_tomo_bins + 1):
             mask *= metacal_WL["TOMO_BIN"] != exclude_tomo_bin
 
-    R = (metacal_WL[mask]["R11"] + metacal_WL[mask]["R22"]) / 2
     source = Source(
         ra=metacal_WL[mask]["RAJ2000"],
         dec=metacal_WL[mask]["DECJ2000"],
-        e1=metacal_WL[mask]["e1"] / R.mean(),
-        e2=metacal_WL[mask]["e2"] / R.mean(),
+        e1=metacal_WL[mask]["e1"] / (1 + metacal_WL[mask]["m"]) / metacal_WL[mask]["R"],
+        e2=metacal_WL[mask]["e2"] / (1 + metacal_WL[mask]["m"]) / metacal_WL[mask]["R"],
         w=metacal_WL[mask]["weight"],
         dndz=dndz,
-        m=float(m),
     )
 
     del metacal_WL
