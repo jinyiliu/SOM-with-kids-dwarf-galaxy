@@ -86,10 +86,25 @@ class DSigmaData:
     dsigma_rand_cross: np.ndarray
     boost_array: np.ndarray
     dsigma_rand_array: np.ndarray
+    cov: np.ndarray
+
+    @classmethod
+    def load(
+            cls,
+            fname: str=None,
+            fnames: list[str]=None,
+            save_dir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
+    ):
+        if fname is not None:
+            return cls._load_csv(fname, save_dir)
+        if fnames is not None:
+            return cls._load_csvs(fnames, save_dir)
+
+        raise ValueError
 
 
     @classmethod
-    def load_csv(
+    def _load_csv(
             cls,
             fname: str,
             save_dir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
@@ -100,6 +115,11 @@ class DSigmaData:
             [df.filter(like="dsigma_rand_tangential_randcat").values.T],
             [df.filter(like="dsigma_rand_cross_randcat").values.T],
         ))
+
+        cov_path = os.path.join(save_dir, fname.replace(".csv", "_cov.npy"))
+        if os.path.exists(cov_path):
+            cov = np.load(cov_path)
+
         return cls(
             mean_rp=df["mean_rp_Mpc_h_inv"].values,
             mean_rp_arcmin=df["mean_rp_arcmin"].values,
@@ -112,6 +132,70 @@ class DSigmaData:
             dsigma_rand_cross=df["dsigma_rand_cross"].values,
             boost_array=boost_array,
             dsigma_rand_array=dsigma_rand_array,
+            cov=cov,
+        )
+
+    @classmethod
+    def _load_csvs(
+            cls,
+            fnames: list[str],
+            save_dir="/data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL/",
+    ) -> "DSigmaData":
+        data = [
+            cls._load_csv(fname, save_dir=save_dir)
+            for fname in fnames
+        ]
+
+        inv_cov_array = np.array([np.linalg.inv(d.cov) for d in data])
+        cov = np.linalg.inv(np.sum(inv_cov_array, axis=0))
+
+        dsigma_tangential = cov @ np.sum([
+            ic @ d.dsigma_tangential
+            for ic, d in zip(inv_cov_array, data)
+        ], axis=0)
+        dsigma_cross = cov @ np.sum([
+            ic @ d.dsigma_cross
+            for ic, d in zip(inv_cov_array, data)
+        ], axis=0)
+
+        w_i = np.array([1. / np.diag(d.cov) for d in data])
+        w_i /= np.sum(w_i, axis=0)
+
+        npairs = np.sum([d.npairs for d in data], axis=0)
+        boost = np.sum([
+            w * d.boost
+            for w, d in zip(w_i, data)
+        ], axis=0,)
+        dsigma_rand_tangential = np.sum([
+            w * d.dsigma_rand_tangential
+            for w, d in zip(w_i, data)
+        ], axis=0)
+        dsigma_rand_cross = np.sum([
+            w * d.dsigma_rand_cross
+            for w, d in zip(w_i, data)
+        ], axis=0)
+        boost_array = np.sum([
+            w[None, :] * d.boost_array
+            for w, d in zip(w_i, data)
+        ], axis=0)
+        dsigma_rand_array = np.sum([
+            w[None, None, :] * d.dsigma_rand_array
+            for w, d in zip(w_i, data)
+        ], axis=0)
+
+        return cls(
+            mean_rp=data[0].mean_rp,
+            mean_rp_arcmin=data[0].mean_rp_arcmin,
+            npairs=npairs,
+            dsigma_tangential=dsigma_tangential,
+            dsigma_cross=dsigma_cross,
+            dsigma_stderr=np.sqrt(np.diag(cov)),
+            boost=boost,
+            dsigma_rand_tangential=dsigma_rand_tangential,
+            dsigma_rand_cross=dsigma_rand_cross,
+            boost_array=boost_array,
+            dsigma_rand_array=dsigma_rand_array,
+            cov=cov,
         )
 
 
