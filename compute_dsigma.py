@@ -2,6 +2,7 @@ import os
 import gc
 import numpy as np
 import pandas as pd
+from operator import itemgetter
 
 from dwarfsom.dsigma import DSigma, Lens, Source, Random
 
@@ -58,6 +59,7 @@ if __name__ == "__main__":
     #         gold_WL[gold_WL["TOMO_BIN"] == tomo]["weight"].sum()
     #     )
     #
+    # FIXME:
     # m = np.average(  # compute average m-bias
     #     list(m_bias.values())[n_excluded_tomo_bins:],
     #     weights=list(tomo_weights.values())[n_excluded_tomo_bins:],
@@ -125,21 +127,18 @@ if __name__ == "__main__":
         os.path.join(_KiDS_data, "KiDS_DR4.1_full_WL_cat.ftr"))
     metacal_WL = table.to_pandas()
 
-    n_excluded_tomo_bins = 1
-
-    tomo_weights = {}
+    tomo_weights = np.ones(len(m_bias))
     metacal_WL["m"] = 0.
     metacal_WL["R"] = 1.
     for tomo in range(1, 6):
-        tomo_weights[tomo] = float(
+        tomo_weights[tomo - 1] = float(
             metacal_WL[metacal_WL["TOMO_BIN"] == tomo]["weight"].sum()
         )
         metacal_WL.loc[metacal_WL["TOMO_BIN"] == tomo, "m"] = m_bias[tomo]
         metacal_WL.loc[metacal_WL["TOMO_BIN"] == tomo, "R"] = response[tomo]
 
-    dndz = []
     for tomo in range(1, 6):
-        tomo_dndz = np.loadtxt(
+        z, tomo_dndz = np.loadtxt(
             os.path.join(
                 "/disks/shear16/myoon/K1000_metacal_CS/CosmoWrapper_Outputs",
                 f"K1000_NS_DIRcols_Fid_blindNONE_TOMO{tomo:d}_Nz.asc",
@@ -147,23 +146,27 @@ if __name__ == "__main__":
             skiprows=1,
             unpack=True,
         )
-        dndz.append(tomo_dndz[1])
+        if "dndz" not in locals():
+            dndz = np.zeros((len(m_bias), len(z)))
+        dndz[tomo - 1] = tomo_dndz
 
-    dndz = np.array(dndz)
+    tomo_bins = [2, 3, 4, 5]
+    tomo_bins_indices = [tomo - 1 for tomo in tomo_bins]
+
     dndz = (
-        tomo_dndz[0],
+        z,
         np.average(
-            dndz[n_excluded_tomo_bins:],
-            weights=list(tomo_weights.values())[n_excluded_tomo_bins:],
+            dndz[tomo_bins_indices],
+            weights=tomo_weights[tomo_bins_indices],
             axis=0,
         ),
     )
 
     mask = metacal_WL["TOMO_BIN"] > 0
 
-    if n_excluded_tomo_bins:
-        for exclude_tomo_bin in range(1, n_excluded_tomo_bins + 1):
-            mask *= metacal_WL["TOMO_BIN"] != exclude_tomo_bin
+    for tomo in range(1, 6):
+        if tomo not in tomo_bins:
+            mask *= metacal_WL["TOMO_BIN"] != tomo
 
     source = Source(
         ra=metacal_WL[mask]["RAJ2000"],
@@ -202,7 +205,7 @@ if __name__ == "__main__":
     # del cat
     # endregion
 
-    fname = "dsigma_Lensbin{}_Sourcebin2345.csv"
+    fname = "dsigma_Lensbin{}_Sourcebin{}.csv"
 
     for i, (lens, min_rp, max_rp, nbins) in enumerate([
         (lens1, 0.025, 15, 12),
@@ -219,6 +222,9 @@ if __name__ == "__main__":
             patch_centers=patch_centers_savepath.format(npatch),
             npatch=npatch,
         )
-        dsigma.save(fname.format(i), save_dir=save_dir)
+        dsigma.save(fname.format(
+            i,
+            "".join(map(str, tomo_bins)),
+        ), save_dir=save_dir)
         del dsigma
         gc.collect()
