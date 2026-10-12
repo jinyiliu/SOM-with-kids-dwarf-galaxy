@@ -51,29 +51,14 @@ dndlogmstar = pd.read_csv(
 
 
 # region Load data: cov1, cov2, dsigma1, dsigma2
-cov1 = np.load(
-    os.path.join(
-        _alblas,
-        _GGL_data,
-        fname.format(1).replace(".csv", "_cov.npy")
-    )
-)
-cov2 = np.load(
-    os.path.join(
-        _alblas,
-        _GGL_data,
-        fname.format(2).replace(".csv", "_cov.npy")
-    )
-)
-
-dsigma1 = DSigmaData.load_csv(
+dsigma1 = DSigmaData.load(
     fname=fname.format(1),
     save_dir=os.path.join(
         _alblas,
         _GGL_data,
     )
 )
-dsigma2 = DSigmaData.load_csv(
+dsigma2 = DSigmaData.load(
     fname=fname.format(2),
     save_dir=os.path.join(
         _alblas,
@@ -90,7 +75,7 @@ M_star1 = 9.153
 M_star2 = 9.596
 
 
-# region Recache host terms in the model if needed
+# region Recache host terms in the model
 # _cache_host_terms = {}
 # for key in [
 #     (0.1, None, 1., 9.5),  # for testing
@@ -102,8 +87,7 @@ M_star2 = 9.596
 # with open(
 #     os.path.join(
 #         _alblas, _GGL_data, "_cache_host_terms.pk"
-#     ), "wb"
-# ) as f:
+#     ), "wb") as f:
 #     pk.dump(_cache_host_terms, f)
 # endregion
 
@@ -154,14 +138,14 @@ def model2(params: np.ndarray[float]):
 mcmc1 = MCMC(
     model=model1,
     data_vector=dsigma1.dsigma_tangential[:-n_outliers],
-    covariance_matrix=cov1[:-n_outliers, :-n_outliers],
+    covariance_matrix=dsigma1.cov[:-n_outliers, :-n_outliers],
     param_priors=param_priors,
 )
 
 mcmc2 = MCMC(
     model=model2,
     data_vector=dsigma2.dsigma_tangential[:-n_outliers],
-    covariance_matrix=cov2[:-n_outliers, :-n_outliers],
+    covariance_matrix=dsigma2.cov[:-n_outliers, :-n_outliers],
     param_priors=param_priors,
 )
 # endregion
