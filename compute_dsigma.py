@@ -210,6 +210,8 @@ if __name__ == "__main__":
     for i, (lens, min_rp, max_rp, nbins) in enumerate([
         (lens1, 0.025, 15, 12),
         (lens2, 0.040, 20, 14),
+        # (lens1, 0.0268, 16.07, 12), # METACALIB
+        # (lens2, 0.0373, 18.67, 14),
     ], start=1):
         dsigma = DSigma(
             lens=lens,
