@@ -51,23 +51,16 @@ if __name__ == "__main__":
     #     "KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.csv",
     # ))
     #
-    # n_excluded_tomo_bins = 1
-    #
-    # tomo_weights = {}
+    # tomo_weights = np.ones(len(m_bias))
+    # gold_WL["m"] = 0.
     # for tomo in range(1, 6):
-    #     tomo_weights[tomo] = float(
+    #     tomo_weights[tomo - 1] = float(
     #         gold_WL[gold_WL["TOMO_BIN"] == tomo]["weight"].sum()
     #     )
+    #     gold_WL.loc[gold_WL["TOMO_BIN"] == tomo, "m"] = m_bias[tomo]
     #
-    # FIXME:
-    # m = np.average(  # compute average m-bias
-    #     list(m_bias.values())[n_excluded_tomo_bins:],
-    #     weights=list(tomo_weights.values())[n_excluded_tomo_bins:],
-    # )
-    #
-    # dndz = []
     # for tomo in range(1, 6):
-    #     som_dndz = np.loadtxt(
+    #     z, tomo_dndz = np.loadtxt(
     #         os.path.join(
     #             _KiDS_data,
     #             "SOM_N_of_Z",
@@ -76,21 +69,27 @@ if __name__ == "__main__":
     #         skiprows=1,
     #         unpack=True,
     #     )
+    #     if "dndz" not in locals():
+    #         dndz = np.zeros((len(m_bias), len(z)))
+    #     dndz[tomo - 1] = tomo_dndz
+    #
+    # tomo_bins = [2, 3, 4, 5]
+    # tomo_bins_indices = [tomo - 1 for tomo in tomo_bins]
     #
     # dndz = (
-    #     som_dndz[0],
+    #     z,
     #     np.average(
-    #         dndz[n_excluded_tomo_bins:],
-    #         weights=list(tomo_weights.values())[n_excluded_tomo_bins:],
+    #         dndz[tomo_bins_indices],
+    #         weights=tomo_weights[tomo_bins_indices],
     #         axis=0,
     #     ),
     # )
     #
     # mask = gold_WL["TOMO_BIN"] > 0
     #
-    # if n_excluded_tomo_bins:
-    #     for exclude_tomo_bin in range(1, n_excluded_tomo_bins + 1):
-    #         mask *= gold_WL["TOMO_BIN"] != exclude_tomo_bin
+    # for tomo in range(1, 6):
+    #     if tomo not in tomo_bins:
+    #         mask *= gold_WL["TOMO_BIN"] != tomo
     #
     # source = Source(
     #     ra=gold_WL[mask]["RAJ2000"],
@@ -99,7 +98,7 @@ if __name__ == "__main__":
     #     e2=gold_WL[mask]["e2"],
     #     w=gold_WL[mask]["weight"],
     #     dndz=dndz,
-    #     m=float(m),
+    #     m=gold_WL[mask].mean(),
     # )
     #
     # del gold_WL
