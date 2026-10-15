@@ -29,7 +29,6 @@ from dwarfsom.mcmc import (
     MCMC, run_emcee, run_nested, estimate_MAP, compute_quantiles, _tqdm_style
 )
 
-
 # region Ignore warnings
 warnings.filterwarnings(
     action="ignore", message="There are no gridspecs with layoutgrids.*",
@@ -41,14 +40,12 @@ warnings.filterwarnings(
 )
 # endregion
 
-
 _SOM_data = "data1/jliu/SOM-with-kids-dwarf-galaxy/data/SOM"
 _GGL_data = "data1/jliu/SOM-with-kids-dwarf-galaxy/data/GGL"
 fname = "dsigma_Lensbin{}_Sourcebin2345.csv"
 
 dndlogmstar = pd.read_csv(
     os.path.join(_alblas, _SOM_data, "dndlogmstar_by_mass_bins.csv"))
-
 
 # region Load data: cov1, cov2, dsigma1, dsigma2
 dsigma1 = DSigmaData.load(
@@ -73,7 +70,6 @@ z_lens2 = 0.11775
 
 M_star1 = 9.153
 M_star2 = 9.596
-
 
 # region Recache host terms in the model
 # _cache_host_terms = {}
@@ -105,7 +101,6 @@ param_labels = [
 
 n_outliers = 2  # remove the last two data points
 
-
 # region Model specification
 def model1(params: np.ndarray[float]):
     return DSigmaModel(
@@ -132,7 +127,6 @@ def model2(params: np.ndarray[float]):
     )
 
 # endregion
-
 
 # region MCMC instances
 mcmc1 = MCMC(
@@ -173,7 +167,6 @@ if __name__ == "__main__":
         n_steps=n_steps,
         processes=processes,
     )
-
 
     mcmc1.register_sampler(sampler1)
     mcmc2.register_sampler(sampler2)
@@ -283,7 +276,6 @@ if __name__ == "__main__":
         fname="posterior_corner.pdf",
     )
     # endregion
-
 
     # region Plot the GGL measurements together with best-fit model
     sep = np.logspace(-2, 2, 100)
